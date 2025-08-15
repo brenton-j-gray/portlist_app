@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { useTheme } from '../../components/ThemeContext';
 import { getTrips } from '../../lib/storage';
@@ -83,29 +83,18 @@ function formatDate(dateStr: string) {
   });
 }
 
-const CARD_SHADOW: any = Platform.select({
-  ios: {
-    borderRadius: 18,
-    marginVertical: 8, // tightened spacing
-    marginHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: 'visible',
-    position: 'relative',
-  },
-  android: {
-    borderRadius: 18,
-    marginVertical: 8,
-    marginHorizontal: 16,
-    elevation: 4,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  default: {}
-});
+const CARD_SHADOW: any = {
+  borderRadius: 18,
+  marginVertical: 8,
+  marginHorizontal: 16,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.12,
+  shadowRadius: 8,
+  elevation: 4,
+  overflow: 'hidden',
+  position: 'relative',
+};
 
 export default function TripsScreen() {
   const { themeColors } = useTheme();
@@ -203,22 +192,13 @@ export default function TripsScreen() {
     addBtn: { backgroundColor: themeColors.addBtnBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
     addText: { color: themeColors.addBtnText, fontWeight: '600' },
     listContent: { paddingBottom: 30 },
-    card: {
+  card: {
       marginBottom: 24,
       borderRadius: 18,
       backgroundColor: themeColors.card,
       overflow: 'hidden',
       position: 'relative',
       minHeight: 90,
-      transitionProperty: 'box-shadow,transform',
-      transitionDuration: '0.18s',
-      transitionTimingFunction: 'cubic-bezier(.4,0,.2,1)',
-      ...(Platform.OS === 'web'
-        ? {
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px 0 rgba(30,41,59,0.13)',
-          }
-        : {}),
     } as any,
     cardAccent: {
       position: 'absolute',
@@ -235,10 +215,9 @@ export default function TripsScreen() {
       paddingLeft: 24,
       zIndex: 2,
     },
-    cardPressed: {
+  cardPressed: {
       opacity: 0.92,
       transform: [{ scale: 0.98 }],
-      ...(Platform.OS === 'web' ? { boxShadow: '0 2px 8px 0 rgba(30,41,59,0.18)' } : {}),
     },
     cardHeaderRow: {
       flexDirection: 'row',
@@ -267,7 +246,7 @@ export default function TripsScreen() {
       fontWeight: '700',
       letterSpacing: 0.2,
     },
-    badge: {
+  badge: {
       paddingHorizontal: 10,
       paddingVertical: 3,
       borderRadius: 999,
@@ -275,7 +254,6 @@ export default function TripsScreen() {
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
-      boxShadow: Platform.OS === 'web' ? '0 1px 4px 0 rgba(30,41,59,0.10)' : undefined,
     } as any,
     badgeText: {
       color: themeColors.badgeText,

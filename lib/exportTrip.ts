@@ -1,29 +1,12 @@
-import { Platform } from 'react-native';
 import { Trip } from '../types';
 
 /**
  * Export a Trip as a JSON file.
- * - Native (iOS/Android): writes to cache then opens share sheet.
- * - Web: triggers a browser download via Blob.
- * Dynamic imports avoid bundling unsupported native modules on web.
+ * Native (iOS/Android): writes to cache then opens share sheet.
  */
 export async function exportTripJSON(trip: Trip) {
   const fileName = `trip_${trip.id}.json`;
   try {
-    if (Platform.OS === 'web') {
-      const data = JSON.stringify(trip, null, 2);
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      return;
-    }
-
     // Native platforms: load modules only when needed
     const FileSystem = await import('expo-file-system');
     const Sharing = await import('expo-sharing');

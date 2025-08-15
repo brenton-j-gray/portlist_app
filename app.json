@@ -9,7 +9,12 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+        "supportsTablet": true,
+        "infoPlist": {
+          "NSPhotoLibraryUsageDescription": "Allow access to select photos for your logs.",
+          "NSPhotoLibraryAddUsageDescription": "Allow saving photos you take to your Photo Library.",
+          "NSCameraUsageDescription": "Allow taking photos for your logs."
+        }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,12 +22,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.mysttpro.cruisejournalpro"
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "package": "com.mysttpro.cruisejournalpro",
+      "permissions": [
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -41,6 +45,7 @@
     },
     "extra": {
       "router": {},
+      "EXPO_PUBLIC_API_URL": "http://192.168.1.107:4000",
       "eas": {
         "projectId": "cd173d24-17cd-4986-add4-fdd48f48ef78"
       }

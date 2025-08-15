@@ -98,61 +98,39 @@ export default function EditTripScreen() {
   <Text style={styles.label}>Ship (optional)</Text>
   <TextInput style={styles.input} placeholder="Ship (optional)" value={ship} onChangeText={setShip} />
   <Text style={styles.label}>Start Date</Text>
-  {Platform.OS === 'web' ? (
-        <input
-          type="date"
-          className="date-input"
-          style={{ ...styles.input, color: startDate ? themeColors.text : themeColors.textSecondary, marginBottom: 10, maxWidth: 180 }}
-          value={startDate}
-          onChange={e => setStartDate(e.target.value)}
-          placeholder="Start date (YYYY-MM-DD)"
-        />
-      ) : (
-        <>
-          <Pressable onPress={() => setShowStartPicker(true)} style={styles.input}>
-            <Text style={{ color: startDate ? themeColors.text : themeColors.textSecondary }}>{startDate ? formatDate(startDate) : 'Start date (YYYY-MM-DD)'}</Text>
-          </Pressable>
-          {showStartPicker && (
-            <DateTimePicker
-              value={startDate ? new Date(startDate) : new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              onChange={(event, date) => {
-                setShowStartPicker(Platform.OS === 'ios');
-                if (date) setStartDate(date.toISOString().slice(0, 10));
-              }}
-            />
-          )}
-        </>
-      )}
+      <>
+        <Pressable onPress={() => setShowStartPicker(true)} style={styles.input}>
+          <Text style={{ color: startDate ? themeColors.text : themeColors.textSecondary }}>{startDate ? formatDate(startDate) : 'Start date (YYYY-MM-DD)'}</Text>
+        </Pressable>
+        {showStartPicker && (
+          <DateTimePicker
+            value={startDate ? new Date(startDate) : new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={(event, date) => {
+              setShowStartPicker(Platform.OS === 'ios');
+              if (date) setStartDate(date.toISOString().slice(0, 10));
+            }}
+          />
+        )}
+      </>
   <Text style={styles.label}>End Date</Text>
-  {Platform.OS === 'web' ? (
-        <input
-          type="date"
-          className="date-input"
-          style={{ ...styles.input, color: endDate ? themeColors.text : themeColors.textSecondary, marginBottom: 10, maxWidth: 180 }}
-          value={endDate}
-          onChange={e => setEndDate(e.target.value)}
-          placeholder="End date (YYYY-MM-DD)"
-        />
-      ) : (
-        <>
-          <Pressable onPress={() => setShowEndPicker(true)} style={styles.input}>
-            <Text style={{ color: endDate ? themeColors.text : themeColors.textSecondary }}>{endDate ? formatDate(endDate) : 'End date (YYYY-MM-DD)'}</Text>
-          </Pressable>
-          {showEndPicker && (
-            <DateTimePicker
-              value={endDate ? new Date(endDate) : new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              onChange={(event, date) => {
-                setShowEndPicker(Platform.OS === 'ios');
-                if (date) setEndDate(date.toISOString().slice(0, 10));
-              }}
-            />
-          )}
-        </>
-      )}
+      <>
+        <Pressable onPress={() => setShowEndPicker(true)} style={styles.input}>
+          <Text style={{ color: endDate ? themeColors.text : themeColors.textSecondary }}>{endDate ? formatDate(endDate) : 'End date (YYYY-MM-DD)'}</Text>
+        </Pressable>
+        {showEndPicker && (
+          <DateTimePicker
+            value={endDate ? new Date(endDate) : new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'inline' : 'default'}
+            onChange={(event, date) => {
+              setShowEndPicker(Platform.OS === 'ios');
+              if (date) setEndDate(date.toISOString().slice(0, 10));
+            }}
+          />
+        )}
+      </>
       <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }]} disabled={!title.trim()}>
         <Text style={styles.btnText}>Save Changes</Text>
       </Pressable>

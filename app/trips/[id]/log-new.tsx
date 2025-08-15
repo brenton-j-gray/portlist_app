@@ -1,9 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../../../components/ThemeContext';
-import { persistPhotoUris } from '../../../lib/media';
+import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../lib/media';
 import { getTripById, uid, upsertTrip } from '../../../lib/storage';
 import { DayLog, Trip } from '../../../types';
 
@@ -55,8 +55,10 @@ export default function NewDayLogScreen() {
       quality: 0.8,
     });
     if (!result.canceled) {
-      const newPhotos = result.assets.map(a => ({ uri: a.uri }));
-      setPhotos(prev => [...prev, ...newPhotos]);
+      const mapped = await Promise.all(
+        result.assets.map(async a => ({ uri: await saveCameraPhotoToLibrary(a.uri) }))
+      );
+      setPhotos(prev => [...prev, ...mapped]);
     }
   }
 
@@ -64,8 +66,8 @@ export default function NewDayLogScreen() {
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
     title: { fontSize: 22, fontWeight: '600', marginBottom: 12, color: themeColors.text },
     input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 10, marginBottom: 10 },
-    btnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-    btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', flex: Platform.OS === 'web' ? 0 : 1 },
+  btnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', flex: 1 },
     btnText: { color: themeColors.badgeText, fontWeight: '700' },
     photoList: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
     photoThumb: { width: 96, height: 96, borderRadius: 8, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder },
@@ -82,11 +84,9 @@ export default function NewDayLogScreen() {
         <Pressable onPress={pickFromLibrary} style={styles.btn} accessibilityLabel="Pick photos from library">
           <Text style={styles.btnText}>Add Photos</Text>
         </Pressable>
-        {Platform.OS !== 'web' && (
-          <Pressable onPress={takePhoto} style={styles.btn} accessibilityLabel="Take a photo">
-            <Text style={styles.btnText}>Take Photo</Text>
-          </Pressable>
-        )}
+        <Pressable onPress={takePhoto} style={styles.btn} accessibilityLabel="Take a photo">
+          <Text style={styles.btnText}>Take Photo</Text>
+        </Pressable>
       </View>
       {!!photos.length && (
         <View style={styles.photoList}>

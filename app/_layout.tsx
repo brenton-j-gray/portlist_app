@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { Href } from 'expo-router';
 import { Stack, router, usePathname } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
+import { AuthProvider } from '../components/AuthContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
+import { syncTripsBackground } from '../lib/sync';
 
 class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error?: Error }> {
   state: { error?: Error } = { };
@@ -26,6 +28,7 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 
 function AppLayoutInner() {
   const { themeColors } = useTheme();
+  useEffect(() => { syncTripsBackground(); }, []);
   const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
     const pathname = usePathname();
     // Compute parent route if `to` not provided
@@ -67,9 +70,11 @@ function AppLayoutInner() {
       </Pressable>
     );
   };
+
   return (
     <View style={{ flex: 1, backgroundColor: themeColors.background }}>
-  <Stack>
+      <Stack>
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="trips/[id]/index" options={{ title: 'Trip Details', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
         <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Day Log', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
@@ -85,7 +90,9 @@ export default function AppLayout() {
   return (
     <RootErrorBoundary>
       <ThemeProvider>
-        <AppLayoutInner />
+        <AuthProvider>
+          <AppLayoutInner />
+        </AuthProvider>
       </ThemeProvider>
     </RootErrorBoundary>
   );
