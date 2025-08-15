@@ -3,7 +3,8 @@ export type DayLog = {
   date: string; // ISO date string
   weather?: string;
   notes?: string;
-  photoUri?: string; // optional local image URI
+  photoUri?: string; // optional local image URI (legacy)
+  photos?: { uri: string; caption?: string }[]; // new: support multiple photos
 };
 
 export type Trip = {

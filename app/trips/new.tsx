@@ -1,10 +1,12 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useTheme } from '../../components/ThemeContext';
 import { addTrip, uid } from '../../lib/storage';
 import { Trip } from '../../types';
 
 export default function NewTripScreen() {
+  const { themeColors } = useTheme();
   const [title, setTitle] = useState('');
   const [ship, setShip] = useState('');
   const [startDate, setStartDate] = useState(''); // simple text for MVP (YYYY-MM-DD)
@@ -26,6 +28,14 @@ export default function NewTripScreen() {
     router.replace(`/trips/${trip.id}`);
   }
 
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
+    title: { fontSize: 22, fontWeight: '600', marginBottom: 12, color: themeColors.text },
+    input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 10, marginBottom: 10 },
+    btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center' },
+    btnText: { color: themeColors.badgeText, fontWeight: '700' },
+  }), [themeColors]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>New Trip</Text>
@@ -41,11 +51,4 @@ export default function NewTripScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 22, fontWeight: '600', marginBottom: 12 },
-  input: { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, marginBottom: 10 },
-  btn: { backgroundColor: '#10b981', padding: 12, borderRadius: 10, alignItems: 'center' },
-  btnText: { color: 'white', fontWeight: '700' },
-});
+// styles via useMemo above

@@ -1,0 +1,21 @@
+// Centralized color constants for Cruise Journal Pro
+export const Colors = {
+  primary: '#1e90ff',
+  primaryDark: '#6366f1',
+  accent: '#64748b',
+  danger: '#dc2626',
+  background: '#f1f5f9',
+  card: '#fff',
+  cardAccentGradient: ['#6366f1', '#1e90ff'],
+  cardAccentGradientVertical: ['#6366f1', '#1e90ff'],
+  text: '#22223b',
+  textSecondary: '#475569',
+  badgeText: '#fff',
+  actionBtnBg: 'rgba(99,102,241,0.08)',
+  menuBg: '#fff',
+  menuBorder: '#e5e7eb',
+  menuText: '#22223b',
+  menuDanger: '#dc2626',
+  addBtnText: '#fff',
+  addBtnBg: '#1e90ff',
+};

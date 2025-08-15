@@ -1,0 +1,21 @@
+// Centralized dark mode color constants for Cruise Journal Pro
+export const DarkColors = {
+  primary: '#60a5fa',
+  primaryDark: '#818cf8',
+  accent: '#a5b4fc',
+  danger: '#f87171',
+  background: '#18181b',
+  card: '#232336',
+  cardAccentGradient: ['#818cf8', '#60a5fa'],
+  cardAccentGradientVertical: ['#818cf8', '#60a5fa'],
+  text: '#f1f5f9',
+  textSecondary: '#a1a1aa',
+  badgeText: '#18181b',
+  actionBtnBg: 'rgba(99,102,241,0.13)',
+  menuBg: '#232336',
+  menuBorder: '#27272a',
+  menuText: '#f1f5f9',
+  menuDanger: '#f87171',
+  addBtnText: '#fff',
+  addBtnBg: '#60a5fa',
+};

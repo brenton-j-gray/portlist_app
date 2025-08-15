@@ -1,7 +1,10 @@
-import { Stack } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import type { Href } from 'expo-router';
+import { Stack, router, usePathname } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
+import { ThemeProvider, useTheme } from '../components/ThemeContext';
 
 class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error?: Error }> {
   state: { error?: Error } = { };
@@ -20,16 +23,70 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
   }
 }
 
+
+function AppLayoutInner() {
+  const { themeColors } = useTheme();
+  const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
+    const pathname = usePathname();
+    // Compute parent route if `to` not provided
+    let computedTo: Href | undefined = to;
+    if (!computedTo) {
+      const parts = (pathname || '/').split('/').filter(Boolean);
+      if (parts[0] === 'trips') {
+        // /trips => no back button needed (not used on tabs)
+        // /trips/[id] => parent is /trips
+        // Any deeper under /trips/[id]/... => parent is /trips/[id]
+        if (parts.length <= 2) {
+          computedTo = '/trips' as Href;
+        } else {
+          computedTo = { pathname: '/trips/[id]', params: { id: parts[1] } } as unknown as Href;
+        }
+      } else {
+        // Fallback
+        computedTo = '/' as Href;
+      }
+    }
+
+    const displayLabel = label ?? (typeof computedTo === 'string' && computedTo === '/trips' ? 'Trips' : 'Back');
+
+    return (
+      <Pressable
+        onPress={() => {
+          // Enforce hierarchical navigation: always go to computed parent
+          if (computedTo) {
+            router.replace(computedTo);
+          } else {
+            router.replace('/');
+          }
+        }}
+        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4 }}
+        accessibilityLabel={`Go back`}
+      >
+        <Ionicons name="chevron-back" size={24} color={themeColors.primaryDark} />
+        <Text style={{ color: themeColors.primaryDark, fontWeight: '600' }}>{displayLabel}</Text>
+      </Pressable>
+    );
+  };
+  return (
+    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
+  <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="trips/[id]/index" options={{ title: 'Trip Details', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+        <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Day Log', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+        <Stack.Screen name="trips/[id]/edit" options={{ title: 'Edit Trip', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+        <Stack.Screen name="trips/[id]/log/[logId]/edit" options={{ title: 'Edit Day Log', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+        <Stack.Screen name="trips/new" options={{ title: 'New Trip', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+      </Stack>
+    </View>
+  );
+}
+
 export default function AppLayout() {
   return (
     <RootErrorBoundary>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="trips/[id]" options={{ title: 'Trip Details' }} />
-        <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Day Log' }} />
-        <Stack.Screen name="trips/[id]/edit" options={{ title: 'Edit Trip' }} />
-        <Stack.Screen name="trips/new" options={{ title: 'New Trip' }} />
-      </Stack>
+      <ThemeProvider>
+        <AppLayoutInner />
+      </ThemeProvider>
     </RootErrorBoundary>
   );
 }
