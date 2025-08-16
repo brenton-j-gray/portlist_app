@@ -133,6 +133,10 @@ export default function SettingsScreen() {
 
       {token && (
         <>
+          <View style={{ height: 8 }} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} style={[styles.ctaBtn, { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }]}>
+            <Text style={[styles.ctaText, { color: themeColors.text }]}>Profile</Text>
+          </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
             <Text style={styles.logoutText}>Sign out</Text>

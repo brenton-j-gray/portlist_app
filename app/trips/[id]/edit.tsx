@@ -94,9 +94,9 @@ export default function EditTripScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Edit Trip</Text>
   <Text style={styles.label}>Trip Title</Text>
-  <TextInput style={styles.input} placeholder="Trip title" value={title} onChangeText={setTitle} />
+  <TextInput style={styles.input} placeholder="Trip title" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
   <Text style={styles.label}>Ship (optional)</Text>
-  <TextInput style={styles.input} placeholder="Ship (optional)" value={ship} onChangeText={setShip} />
+  <TextInput style={styles.input} placeholder="Ship (optional)" placeholderTextColor={themeColors.textSecondary} value={ship} onChangeText={setShip} />
   <Text style={styles.label}>Start Date</Text>
       <>
         <Pressable onPress={() => setShowStartPicker(true)} style={styles.input}>

@@ -33,3 +33,43 @@ export async function apiLogin(email: string, password: string) {
 export async function apiRegister(email: string, password: string) {
   return post<AuthResponse>('/auth/register', { email, password });
 }
+
+// Health
+export async function apiHealth(): Promise<{ ok: boolean; [k: string]: any }> {
+  const res = await fetch(`${API_URL}/health`);
+  let json: any = null;
+  try { json = await res.json(); } catch { /* ignore */ }
+  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+  return json || { ok: false };
+}
+
+// Profile
+export type Profile = { userId?: string; fullName?: string; username?: string; bio?: string; createdAt?: string; updatedAt?: string } | null;
+
+async function authGet<T>(path: string): Promise<T> {
+  const token = await getToken();
+  const res = await fetch(`${API_URL}${path}`, { headers: { 'Authorization': token ? `Bearer ${token}` : '' } });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+  return json as T;
+}
+
+async function authPut<T>(path: string, body: any): Promise<T> {
+  const token = await getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+  return json as T;
+}
+
+export async function apiGetProfile() {
+  return authGet<{ profile: Profile }>('/profile');
+}
+
+export async function apiSaveProfile(p: { fullName?: string; username?: string; bio?: string }) {
+  return authPut<{ profile: Profile }>('/profile', p);
+}

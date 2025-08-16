@@ -27,8 +27,8 @@ export default function RegisterScreen() {
   async function onRegister() {
     try {
       setBusy(true);
-      await register(email.trim().toLowerCase(), password);
-      router.replace('/(tabs)');
+  await register(email.trim().toLowerCase(), password);
+  router.replace('/(auth)/setup');
     } catch (e: any) {
       Alert.alert('Register failed', e?.message || 'Try a different email.');
     } finally {
@@ -40,8 +40,8 @@ export default function RegisterScreen() {
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Create account</Text>
-        <TextInput autoCapitalize="none" placeholder="Email" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
-        <TextInput placeholder="Password" style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
+  <TextInput autoCapitalize="none" placeholder="Email" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
+  <TextInput placeholder="Password" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
         <Pressable onPress={onRegister} style={styles.btn} disabled={busy}>
           <Text style={styles.btnText}>{busy ? 'Creating…' : 'Create account'}</Text>
         </Pressable>

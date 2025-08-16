@@ -40,10 +40,10 @@ export default function NewTripScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>New Trip</Text>
 
-      <TextInput style={styles.input} placeholder="Trip title" value={title} onChangeText={setTitle} />
-      <TextInput style={styles.input} placeholder="Ship (optional)" value={ship} onChangeText={setShip} />
-      <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" value={startDate} onChangeText={setStartDate} />
-      <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" value={endDate} onChangeText={setEndDate} />
+  <TextInput style={styles.input} placeholder="Trip title" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
+  <TextInput style={styles.input} placeholder="Ship (optional)" placeholderTextColor={themeColors.textSecondary} value={ship} onChangeText={setShip} />
+  <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={startDate} onChangeText={setStartDate} />
+  <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={endDate} onChangeText={setEndDate} />
 
       <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }]} disabled={!title.trim()}>
         <Text style={styles.btnText}>Save Trip</Text>

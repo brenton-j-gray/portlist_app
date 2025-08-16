@@ -1,9 +1,10 @@
 // Format date as DAY DD MMM YYYY, parsing YYYY-MM-DD as local date to avoid timezone shift
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../components/ThemeContext';
 import { getTrips } from '../../lib/storage';
@@ -98,6 +99,7 @@ const CARD_SHADOW: any = {
 
 export default function TripsScreen() {
   const { themeColors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [sortBy, setSortBy] = useState<'created' | 'title' | 'startDate'>('created');
 
@@ -187,9 +189,9 @@ export default function TripsScreen() {
       letterSpacing: 0.1,
     },
   container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 },
   title: { fontSize: 30, fontWeight: '600', color: themeColors.text },
-    addBtn: { backgroundColor: themeColors.addBtnBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
+    addBtn: { backgroundColor: themeColors.addBtnBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
     addText: { color: themeColors.addBtnText, fontWeight: '600' },
     listContent: { paddingBottom: 30 },
   card: {
@@ -265,12 +267,7 @@ export default function TripsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Your Trips</Text>
-        <Link href="/trips/new" style={styles.addBtn}>
-          <Text style={styles.addText}>+ New Trip</Text>
-        </Link>
-      </View>
+  {/* header row removed to avoid redundancy; action moved to floating button */}
       <View style={styles.sortRow}>
         <Text style={styles.sortLabel}>Sort by:</Text>
         <TouchableOpacity
@@ -367,6 +364,30 @@ export default function TripsScreen() {
           }}
         />
       )}
+      {/* Floating Action Button */}
+      <Pressable
+        onPress={() => router.push('/trips/new')}
+        accessibilityLabel="Create a new trip"
+        style={{
+          position: 'absolute',
+          right: 20,
+          bottom: Math.max(20, (insets?.bottom || 0) + 76),
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: themeColors.addBtnBg,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 6,
+          zIndex: 100,
+        }}
+      >
+        <Ionicons name="add" size={28} color={themeColors.addBtnText} />
+      </Pressable>
     </View>
   );
 }

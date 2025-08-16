@@ -4,7 +4,7 @@ import { Stack, router, usePathname } from 'expo-router';
 import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
-import { AuthProvider } from '../components/AuthContext';
+import { AuthProvider, useAuth } from '../components/AuthContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
 import { syncTripsBackground } from '../lib/sync';
 
@@ -28,6 +28,7 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 
 function AppLayoutInner() {
   const { themeColors } = useTheme();
+  const { token, userName, userEmail } = useAuth();
   useEffect(() => { syncTripsBackground(); }, []);
   const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
     const pathname = usePathname();
@@ -76,11 +77,51 @@ function AppLayoutInner() {
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="trips/[id]/index" options={{ title: 'Trip Details', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
-        <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Day Log', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
-        <Stack.Screen name="trips/[id]/edit" options={{ title: 'Edit Trip', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
-        <Stack.Screen name="trips/[id]/log/[logId]/edit" options={{ title: 'Edit Day Log', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
-        <Stack.Screen name="trips/new" options={{ title: 'New Trip', headerBackVisible: false, headerLeft: () => <BackButton /> }} />
+    <Stack.Screen name="trips/[id]/index" options={{ title: 'Trip Details', headerBackVisible: false, headerLeft: () => <BackButton />, headerRight: () => (
+          token ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
+      <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+            </View>
+          ) : null
+        ) }} />
+  <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Log', headerBackVisible: false, headerLeft: () => <BackButton />, headerRight: () => (
+          token ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
+      <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+            </View>
+          ) : null
+        ) }} />
+    <Stack.Screen name="trips/[id]/edit" options={{ title: 'Edit Trip', headerBackVisible: false, headerLeft: () => <BackButton />, headerRight: () => (
+          token ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
+      <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+            </View>
+          ) : null
+        ) }} />
+  <Stack.Screen name="trips/[id]/log/[logId]/edit" options={{ title: 'Edit Log', headerBackVisible: false, headerLeft: () => <BackButton />, headerRight: () => (
+          token ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
+      <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+            </View>
+          ) : null
+        ) }} />
+    <Stack.Screen name="trips/new" options={{ title: 'New Trip', headerBackVisible: false, headerLeft: () => <BackButton />, headerRight: () => (
+          token ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
+              <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
+      <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+            </View>
+          ) : null
+        ) }} />
       </Stack>
     </View>
   );

@@ -40,8 +40,8 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.card}>
         <Text style={styles.title}>Sign in</Text>
-        <TextInput autoCapitalize="none" placeholder="Email" style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
-        <TextInput placeholder="Password" style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
+  <TextInput autoCapitalize="none" placeholder="Email" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
+  <TextInput placeholder="Password" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
         <Pressable onPress={onLogin} style={styles.btn} disabled={busy}>
           <Text style={styles.btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
         </Pressable>

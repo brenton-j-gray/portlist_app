@@ -1,10 +1,13 @@
 export type DayLog = {
   id: string;
   date: string; // ISO date string
+  title?: string;
+  description?: string;
   weather?: string;
   notes?: string;
   photoUri?: string; // optional local image URI (legacy)
   photos?: { uri: string; caption?: string }[]; // new: support multiple photos
+  location?: { lat: number; lng: number };
 };
 
 export type Trip = {

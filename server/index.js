@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import mongoose from 'mongoose';
 import morgan from 'morgan';
 import authRouter from './routes/auth.js';
+import profileRouter from './routes/profile.js';
 import syncRouter from './routes/sync.js';
 
 const app = express();
@@ -19,6 +20,7 @@ app.use(rateLimit({ windowMs: 60_000, max: 100 }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/auth', authRouter);
 app.use('/sync', syncRouter);
+app.use('/profile', profileRouter);
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {

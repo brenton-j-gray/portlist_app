@@ -1,9 +1,10 @@
 // Format date as DAY DD MMM YYYY, parsing YYYY-MM-DD as local date to avoid timezone shift
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../../components/ThemeContext';
 import { exportTripJSON } from '../../../lib/exportTrip';
 import { getTripById } from '../../../lib/storage';
@@ -33,6 +34,7 @@ export default function TripDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
   const [showActions, setShowActions] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -111,7 +113,7 @@ export default function TripDetail() {
   btnTextAlt: { color: themeColors.text, fontWeight: '700', fontSize: 16 },
     card: { padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10 },
     cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: themeColors.text },
-    listContent: { paddingTop: 12, paddingBottom: 24 },
+  listContent: { paddingTop: 12, paddingBottom: 120 },
     emptyText: { marginTop: 24, textAlign: 'center', color: themeColors.textSecondary },
   }), [themeColors]);
 
@@ -127,6 +129,15 @@ export default function TripDetail() {
         end={{ x: 1, y: 1 }}
         style={styles.gradientHeader}
       >
+        {/* Small Export button above the Edit button */}
+        <Pressable
+          onPress={() => exportTripJSON(trip)}
+          style={[styles.headerIconBtn, { top: 8 }]}
+          accessibilityLabel="Export Trip"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="download-outline" size={20} color="#ffffff" />
+        </Pressable>
         <Pressable
           onPress={() => router.push(`/trips/${trip.id}/edit`)}
           style={styles.headerIconBtn}
@@ -157,22 +168,12 @@ export default function TripDetail() {
         )}
         <View style={styles.summaryRow}>
           <Ionicons name="document-text-outline" size={20} color={themeColors.accent} style={styles.summaryIcon} />
-          <Text style={styles.summaryText}>{trip.days.length} day log{trip.days.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.summaryText}>{trip.days.length} log{trip.days.length !== 1 ? 's' : ''}</Text>
         </View>
       </View>
-      <View style={styles.headerActions}>
-        <Link href={`/trips/${trip.id}/edit`} style={styles.btnAlt}>
-          <Text style={styles.btnTextAlt}>Edit Trip</Text>
-        </Link>
-        <Pressable onPress={() => exportTripJSON(trip)} style={styles.btnAlt} accessibilityLabel="Export Trip">
-          <Text style={styles.btnTextAlt}>Export</Text>
-        </Pressable>
-        <Link href={`/trips/${trip.id}/log-new`} style={styles.btn}>
-          <Text style={styles.btnText}>+ Log Day</Text>
-        </Link>
-      </View>
-    {trip.days.length === 0 ? (
-        <Text style={styles.emptyText}>No day logs yet. Add your first one.</Text>
+
+  {trip.days.length === 0 ? (
+    <Text style={styles.emptyText}>No logs yet. Add your first one.</Text>
       ) : (
         <FlatList
           data={trip.days}
@@ -182,6 +183,31 @@ export default function TripDetail() {
           onScrollBeginDrag={() => { if (showActions) setShowActions(false); }}
         />
       )}
+
+  {/* Floating Add Log Button */}
+      <Pressable
+        onPress={() => router.push(`/trips/${trip.id}/log-new`) }
+  accessibilityLabel="Add log"
+        style={{
+          position: 'absolute',
+          right: 20,
+          bottom: Math.max(20, (insets?.bottom || 0) + 76),
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: themeColors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: '#000',
+          shadowOpacity: 0.25,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 6,
+          zIndex: 100,
+        }}
+      >
+        <Ionicons name="add" size={28} color={themeColors.badgeText} />
+      </Pressable>
     </View>
   );
 }
@@ -189,20 +215,33 @@ export default function TripDetail() {
 function DayItem({ item, themeColors, tripId }: { item: DayLog, themeColors: any, tripId: string }) {
   return (
     <Pressable
-  onPress={() => router.push({ pathname: '/trips/[id]/log/[logId]/edit', params: { id: tripId, logId: item.id } })}
-      style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10 }}
+      onPress={() => router.push({ pathname: '/trips/[id]/log/[logId]/edit', params: { id: tripId, logId: item.id } })}
+      style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}
       accessibilityLabel={`Edit log ${item.date}`}
     >
-      <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4, color: themeColors.text }}>{item.date}</Text>
-      {!!item.weather && <Text style={{ color: themeColors.textSecondary }}>Weather: {item.weather}</Text>}
-      {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary }}>{item.notes}</Text>}
       {!!item.photos?.length && (
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-          {item.photos.map((p, idx) => (
-            <Image key={`${p.uri}-${idx}`} source={{ uri: p.uri }} style={{ width: 84, height: 84, borderRadius: 8 }} />
-          ))}
-        </View>
+        <Image source={{ uri: item.photos[0].uri }} style={{ width: 64, height: 64, borderRadius: 8 }} />
       )}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 16, fontWeight: '600', color: themeColors.text }}>{item.date}</Text>
+        {!!item.title && <Text numberOfLines={1} style={{ color: themeColors.text, fontWeight: '600', marginTop: 2 }}>{item.title}</Text>}
+        {!!item.description && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.description}</Text>}
+        {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.notes}</Text>}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+          {!!item.weather && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name={(item.weather + '-outline') as any} size={14} color={themeColors.textSecondary} />
+              <Text style={{ color: themeColors.textSecondary }}>{item.weather}</Text>
+            </View>
+          )}
+          {!!item.location && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Ionicons name="location-outline" size={14} color={themeColors.textSecondary} />
+              <Text style={{ color: themeColors.textSecondary }}>{item.location.lat.toFixed(3)}, {item.location.lng.toFixed(3)}</Text>
+            </View>
+          )}
+        </View>
+      </View>
     </Pressable>
   );
 }
