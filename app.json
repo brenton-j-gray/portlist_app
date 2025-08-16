@@ -9,36 +9,40 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-        "supportsTablet": true,
-        "infoPlist": {
-          "NSPhotoLibraryUsageDescription": "Allow access to select photos for your logs.",
-          "NSPhotoLibraryAddUsageDescription": "Allow saving photos you take to your Photo Library.",
-            "NSCameraUsageDescription": "Allow taking photos for your logs.",
-            "NSLocationWhenInUseUsageDescription": "Allow using your location to tag logs with a place."
-        }
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow access to select photos for your logs.",
+        "NSPhotoLibraryAddUsageDescription": "Allow saving photos you take to your Photo Library.",
+        "NSCameraUsageDescription": "Allow taking photos for your logs.",
+        "NSLocationWhenInUseUsageDescription": "Allow using your location to tag logs with a place.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "config": {
+        "googleMapsApiKey": "process.env.GOOGLE_MAPS_API_KEY_IOS"
+      },
+      "bundleIdentifier": "com.Mystk.travellog"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "config": {
+        "googleMaps": {
+          "apiKey": "process.env.GOOGLE_MAPS_API_KEY"
+        }
+      },
       "edgeToEdgeEnabled": true,
       "package": "com.mysttpro.cruisejournalpro",
       "permissions": [
         "CAMERA",
-  "READ_MEDIA_IMAGES",
-  "ACCESS_COARSE_LOCATION",
-  "ACCESS_FINE_LOCATION"
+        "READ_MEDIA_IMAGES",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
       "expo-router",
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": ""
-        }
-      ],
       [
         "expo-splash-screen",
         {

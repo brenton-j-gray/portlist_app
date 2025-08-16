@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import { useTheme } from '../../../../../components/ThemeContext';
 import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../../../lib/media';
 import { getTripById, upsertTrip } from '../../../../../lib/storage';
@@ -49,11 +49,16 @@ export default function EditDayLogScreen() {
       await Location.requestForegroundPermissionsAsync();
       try {
         const inGo = Constants.appOwnership === 'expo';
-        if (!inGo) {
+        const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
+        if (!inGo && hasAirMap) {
           const mod = await import('react-native-maps');
           setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker });
+        } else {
+          setMapComponents(null);
         }
-      } catch {}
+      } catch {
+        setMapComponents(null);
+      }
     })();
   }, [id, logId]);
 
@@ -195,7 +200,7 @@ export default function EditDayLogScreen() {
           </MapComponents.MapView>
         </View>
       ) : (
-        <Text style={{ color: themeColors.textSecondary, marginBottom: 8 }}>Map preview loads in dev client. You can still tag with your current location.</Text>
+        <Text style={{ color: themeColors.textSecondary, marginBottom: 8 }}>Map preview is unavailable in this build. You can still tag with your current location.</Text>
       )}
       <View style={styles.btnRow}>
         <Pressable onPress={useCurrentLocation} style={[styles.btn, { backgroundColor: themeColors.actionBtnBg, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }]} accessibilityLabel="Use current location">
