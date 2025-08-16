@@ -40,6 +40,3 @@ server/.env
 
 app-example
 .env*
-
-android/
-ios/
