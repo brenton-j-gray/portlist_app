@@ -25,6 +25,32 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Google Maps API keys (dev client)
+
+This app uses a dynamic config (`app.config.ts`) to inject Google Maps keys into native builds.
+
+Set keys via environment variables (don’t hardcode secrets):
+
+- `GOOGLE_MAPS_API_KEY` (Android)
+- `GOOGLE_MAPS_API_KEY_IOS` (iOS; optional, falls back to the Android key)
+
+Local (PowerShell on Windows):
+
+```pwsh
+$env:GOOGLE_MAPS_API_KEY='YOUR_ANDROID_KEY'; npx expo start --dev-client
+```
+
+EAS Build (recommended):
+
+1. Add secrets in Expo Dashboard: `GOOGLE_MAPS_API_KEY`, optional `GOOGLE_MAPS_API_KEY_IOS`.
+2. Rebuild the dev client:
+
+```pwsh
+npx eas build --platform android --profile development
+```
+
+Note: Native changes (like API keys) require reinstalling the dev client.
+
 ## Get a fresh project
 
 When you're ready, run:

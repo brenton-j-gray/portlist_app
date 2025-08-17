@@ -1,6 +1,7 @@
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../../components/ThemeContext';
 import { addTrip, uid } from '../../lib/storage';
 import { Trip } from '../../types';
@@ -9,8 +10,41 @@ export default function NewTripScreen() {
   const { themeColors } = useTheme();
   const [title, setTitle] = useState('');
   const [ship, setShip] = useState('');
-  const [startDate, setStartDate] = useState(''); // simple text for MVP (YYYY-MM-DD)
+  const [startDate, setStartDate] = useState(''); // YYYY-MM-DD
   const [endDate, setEndDate] = useState('');
+  const [showStart, setShowStart] = useState(false);
+  const [showEnd, setShowEnd] = useState(false);
+
+  function toISODate(d: Date) {
+    const y = d.getFullYear();
+    const m = `${d.getMonth() + 1}`.padStart(2, '0');
+    const day = `${d.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function parseISODate(s: string | undefined): Date {
+    if (!s) return new Date();
+    const [y, m, d] = s.split('-').map((p) => parseInt(p, 10));
+    if (!y || !m || !d) return new Date();
+    // Months 0-indexed
+    return new Date(y, m - 1, d);
+  }
+
+  function onChangeStart(_event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === 'android') setShowStart(false);
+    if (!date) return;
+    const v = toISODate(date);
+    setStartDate(v);
+    // If end is before start, clear it
+    if (endDate && new Date(endDate) < date) setEndDate('');
+  }
+
+  function onChangeEnd(_event: DateTimePickerEvent, date?: Date) {
+    if (Platform.OS === 'android') setShowEnd(false);
+    if (!date) return;
+    const v = toISODate(date);
+    setEndDate(v);
+  }
 
   async function onSave() {
     if (!title.trim()) return;
@@ -32,7 +66,9 @@ export default function NewTripScreen() {
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
     title: { fontSize: 22, fontWeight: '600', marginBottom: 12, color: themeColors.text },
     input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 10, marginBottom: 10 },
-    btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center' },
+  dateBtn: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, borderRadius: 8, padding: 12, marginBottom: 10 },
+  dateText: { color: themeColors.text },
+  btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center' },
     btnText: { color: themeColors.badgeText, fontWeight: '700' },
   }), [themeColors]);
 
@@ -42,8 +78,32 @@ export default function NewTripScreen() {
 
   <TextInput style={styles.input} placeholder="Trip title" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
   <TextInput style={styles.input} placeholder="Ship (optional)" placeholderTextColor={themeColors.textSecondary} value={ship} onChangeText={setShip} />
-  <TextInput style={styles.input} placeholder="Start date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={startDate} onChangeText={setStartDate} />
-  <TextInput style={styles.input} placeholder="End date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={endDate} onChangeText={setEndDate} />
+
+  <Pressable style={styles.dateBtn} onPress={() => setShowStart(true)} accessibilityLabel="Choose start date">
+    <Text style={styles.dateText}>{startDate ? `Start: ${startDate}` : 'Start date'}</Text>
+  </Pressable>
+  {showStart && (
+    <DateTimePicker
+      value={parseISODate(startDate)}
+      mode="date"
+      display={Platform.select({ android: 'calendar', ios: 'spinner', default: 'default' }) as any}
+      onChange={onChangeStart}
+      maximumDate={endDate ? parseISODate(endDate) : undefined}
+    />
+  )}
+
+  <Pressable style={styles.dateBtn} onPress={() => setShowEnd(true)} accessibilityLabel="Choose end date">
+    <Text style={styles.dateText}>{endDate ? `End: ${endDate}` : 'End date (optional)'}</Text>
+  </Pressable>
+  {showEnd && (
+    <DateTimePicker
+      value={parseISODate(endDate || startDate)}
+      mode="date"
+      display={Platform.select({ android: 'calendar', ios: 'spinner', default: 'default' }) as any}
+      onChange={onChangeEnd}
+      minimumDate={startDate ? parseISODate(startDate) : undefined}
+    />
+  )}
 
       <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }]} disabled={!title.trim()}>
         <Text style={styles.btnText}>Save Trip</Text>
