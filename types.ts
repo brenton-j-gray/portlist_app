@@ -8,6 +8,7 @@ export type DayLog = {
   photoUri?: string; // optional local image URI (legacy)
   photos?: { uri: string; caption?: string }[]; // new: support multiple photos
   location?: { lat: number; lng: number };
+  locationName?: string; // human-readable label for location
 };
 
 export type Trip = {

@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
 import { useTheme } from '../../../../../components/ThemeContext';
 import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../../../lib/media';
 import { getTripById, upsertTrip } from '../../../../../lib/storage';
@@ -22,8 +22,11 @@ export default function EditDayLogScreen() {
   const [notes, setNotes] = useState<string>('');
   const [photos, setPhotos] = useState<{ uri: string; caption?: string }[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number } | undefined>(undefined);
+  const [locationLabel, setLocationLabel] = useState<string>('');
+  const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
   const MapRef = useRef<any>(null);
   const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any }>(null);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -62,6 +65,26 @@ export default function EditDayLogScreen() {
     })();
   }, [id, logId]);
 
+  // Resolve human-readable location label
+  useEffect(() => {
+    (async () => {
+      if (!location) { setLocationLabel(''); return; }
+      try {
+        const results = await Location.reverseGeocodeAsync({ latitude: location.lat, longitude: location.lng });
+        if (results && results.length) {
+          const r = results[0];
+          const parts = [r.city || r.subregion, r.region, r.country].filter(Boolean);
+          const label = parts.join(', ');
+          setLocationLabel(label || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`);
+        } else {
+          setLocationLabel(`${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`);
+        }
+      } catch {
+        setLocationLabel(`${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`);
+      }
+    })();
+  }, [location]);
+
   async function pickFromLibrary() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -79,15 +102,34 @@ export default function EditDayLogScreen() {
     if (!e?.nativeEvent?.coordinate) return;
     const { latitude, longitude } = e.nativeEvent.coordinate;
     setLocation({ lat: latitude, lng: longitude });
+    try {
+      const region = { latitude, longitude, latitudeDelta: 0.02, longitudeDelta: 0.02 };
+      requestAnimationFrame(() => {
+        if (MapRef.current?.animateToRegion) MapRef.current.animateToRegion(region, 350);
+        else if (MapRef.current?.fitToCoordinates) MapRef.current.fitToCoordinates([{ latitude, longitude }], { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
+      });
+    } catch {}
   }
 
   async function useCurrentLocation() {
+    setLocating(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') return;
       const loc = await Location.getCurrentPositionAsync({});
-      setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-    } catch {}
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      setLocation({ lat, lng });
+      try {
+        const region = { latitude: lat, longitude: lng, latitudeDelta: 0.02, longitudeDelta: 0.02 };
+        requestAnimationFrame(() => {
+          if (MapRef.current?.animateToRegion) MapRef.current.animateToRegion(region, 350);
+          else if (MapRef.current?.fitToCoordinates) MapRef.current.fitToCoordinates([{ latitude: lat, longitude: lng }], { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
+        });
+      } catch {}
+    } catch {} finally {
+      setLocating(false);
+    }
   }
 
   const weatherOptions: { key: string; label: string; icon: any }[] = [
@@ -136,6 +178,7 @@ export default function EditDayLogScreen() {
   notes: notes || undefined,
       photos: persisted,
   location: location ? { lat: location.lat, lng: location.lng } : undefined,
+    locationName: location ? (locationLabel || undefined) : undefined,
       photoUri: undefined,
     };
     const nextDays = trip.days.map(d => (d.id === log.id ? updatedLog : d));
@@ -182,28 +225,45 @@ export default function EditDayLogScreen() {
           </Pressable>
         ))}
       </View>
-      <Text style={styles.label}>Description</Text>
-      <TextInput style={[styles.input, { height: 120 }]} multiline placeholder="Description (optional)" placeholderTextColor={themeColors.textSecondary} value={description} onChangeText={setDescription} />
-      <Text style={styles.label}>Notes</Text>
-      <TextInput style={[styles.input, { height: 100 }]} multiline placeholder="Notes (optional)" placeholderTextColor={themeColors.textSecondary} value={notes} onChangeText={setNotes} />
       <Text style={styles.label}>Location</Text>
-      {MapComponents ? (
-        <View style={styles.mapBox}>
-          <MapComponents.MapView style={{ flex: 1 }}
-            initialRegion={{ latitude: location?.lat || 37.78825, longitude: location?.lng || -122.4324, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-            onPress={onMapPress}
-            ref={MapRef}
-          >
-            {location && (
-              <MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
-            )}
-          </MapComponents.MapView>
+      <Text style={{ color: themeColors.textSecondary, marginBottom: 6 }}>
+        {location ? `Selected location: ${locationLabel}` : 'No location selected'}
+      </Text>
+      {locating && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <ActivityIndicator size="small" color={themeColors.textSecondary} />
+          <Text style={{ color: themeColors.textSecondary, marginLeft: 8 }}>Finding your location…</Text>
         </View>
+      )}
+      {MapComponents ? (
+        <>
+          <View style={styles.mapBox}>
+            <MapComponents.MapView style={{ flex: 1 }}
+              initialRegion={{ latitude: location?.lat || 37.78825, longitude: location?.lng || -122.4324, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
+              onPress={onMapPress}
+              mapType={mapType}
+              ref={MapRef}
+            >
+              {location && (
+                <MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
+              )}
+            </MapComponents.MapView>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            <Pressable onPress={() => setMapType('standard')} style={[{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card }, mapType === 'standard' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' }]} accessibilityLabel="Map view">
+              <Text style={{ color: mapType === 'standard' ? themeColors.primaryDark : themeColors.textSecondary }}>Map</Text>
+            </Pressable>
+            <Pressable onPress={() => setMapType('hybrid')} style={[{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card }, mapType === 'hybrid' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' }]} accessibilityLabel="Satellite view with labels">
+              <Text style={{ color: mapType === 'hybrid' ? themeColors.primaryDark : themeColors.textSecondary }}>Satellite</Text>
+            </Pressable>
+          </View>
+        </>
       ) : (
         <Text style={{ color: themeColors.textSecondary, marginBottom: 8 }}>Map preview is unavailable in this build. You can still tag with your current location.</Text>
       )}
       <View style={styles.btnRow}>
-        <Pressable onPress={useCurrentLocation} style={[styles.btn, { backgroundColor: themeColors.actionBtnBg, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }]} accessibilityLabel="Use current location">
+        <Pressable onPress={useCurrentLocation} disabled={locating} style={[styles.btn, { backgroundColor: themeColors.actionBtnBg, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }, locating && { opacity: 0.7 }]} accessibilityLabel="Use current location">
           <Text style={[styles.btnText, { color: themeColors.text }]}>Use Current Location</Text>
         </Pressable>
         {location && (
@@ -212,7 +272,10 @@ export default function EditDayLogScreen() {
           </Pressable>
         )}
       </View>
-
+      <Text style={styles.label}>Description</Text>
+      <TextInput style={[styles.input, { height: 120 }]} multiline placeholder="Description (optional)" placeholderTextColor={themeColors.textSecondary} value={description} onChangeText={setDescription} />
+      <Text style={styles.label}>Notes</Text>
+      <TextInput style={[styles.input, { height: 100 }]} multiline placeholder="Notes (optional)" placeholderTextColor={themeColors.textSecondary} value={notes} onChangeText={setNotes} />
       <View style={styles.btnRow}>
         <Pressable onPress={pickFromLibrary} style={styles.btn} accessibilityLabel="Add photos from library">
           <Text style={styles.btnText}>Add Photos</Text>
@@ -221,7 +284,6 @@ export default function EditDayLogScreen() {
           <Text style={styles.btnText}>Take Photo</Text>
         </Pressable>
       </View>
-
       {!!photos.length && (
         <View style={styles.photoList}>
           {photos.map((p, idx) => (
@@ -234,6 +296,7 @@ export default function EditDayLogScreen() {
           ))}
         </View>
       )}
+      
 
   <Pressable onPress={onSave} style={styles.saveBtn} disabled={!canSave}>
         <Text style={styles.btnText}>Save Changes</Text>

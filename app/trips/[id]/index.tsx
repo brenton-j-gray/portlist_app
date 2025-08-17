@@ -223,8 +223,8 @@ function DayItem({ item, themeColors, tripId }: { item: DayLog, themeColors: any
         <Image source={{ uri: item.photos[0].uri }} style={{ width: 64, height: 64, borderRadius: 8 }} />
       )}
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: themeColors.text }}>{item.date}</Text>
-        {!!item.title && <Text numberOfLines={1} style={{ color: themeColors.text, fontWeight: '600', marginTop: 2 }}>{item.title}</Text>}
+        {!!item.title && <Text numberOfLines={1} style={{ fontSize: 16, color: themeColors.text, fontWeight: '600' }}>{item.title}</Text>}
+        <Text style={{ fontWeight: '600', color: themeColors.text, marginTop: item.title ? 2 : 0 }}>{item.date}</Text>
         {!!item.description && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.description}</Text>}
         {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.notes}</Text>}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
@@ -234,10 +234,12 @@ function DayItem({ item, themeColors, tripId }: { item: DayLog, themeColors: any
               <Text style={{ color: themeColors.textSecondary }}>{item.weather}</Text>
             </View>
           )}
-          {!!item.location && (
+          {!!(item.locationName || item.location) && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name="location-outline" size={14} color={themeColors.textSecondary} />
-              <Text style={{ color: themeColors.textSecondary }}>{item.location.lat.toFixed(3)}, {item.location.lng.toFixed(3)}</Text>
+              <Text style={{ color: themeColors.textSecondary }}>
+                {item.locationName ? item.locationName : 'Location added'}
+              </Text>
             </View>
           )}
         </View>
