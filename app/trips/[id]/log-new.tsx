@@ -95,7 +95,7 @@ export default function NewDayLogScreen() {
 
   async function pickFromLibrary() {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsMultipleSelection: true,
       quality: 0.8,
       selectionLimit: 6,
@@ -108,7 +108,7 @@ export default function NewDayLogScreen() {
 
   async function takePhoto() {
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.8,
     });
     if (!result.canceled) {
@@ -173,7 +173,6 @@ export default function NewDayLogScreen() {
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
-    title: { fontSize: 22, fontWeight: '600', marginBottom: 12, color: themeColors.text },
     input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 10, marginBottom: 10 },
   label: { fontSize: 14, fontWeight: '500', marginBottom: 4, marginLeft: 2, color: themeColors.textSecondary },
   btnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
@@ -193,7 +192,7 @@ export default function NewDayLogScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
-  <Text style={styles.title}>New Log</Text>
+  {/* Header provides the screen title */}
       <Text style={styles.label}>Title</Text>
       <TextInput style={styles.input} placeholder="Title (optional)" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
   <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={date} onChangeText={setDate} />

@@ -10,7 +10,7 @@ const backupSchema = new mongoose.Schema({
   updatedAt: { type: Number, required: true },
 }, { timestamps: true });
 
-const Backup = mongoose.model('Backup', backupSchema);
+const Backup = mongoose.models.Backup || mongoose.model('Backup', backupSchema);
 
 router.get('/trips', requireAuth, async (req, res) => {
   const userId = req.user.id;

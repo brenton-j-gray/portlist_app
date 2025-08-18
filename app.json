@@ -51,7 +51,7 @@
     },
     "extra": {
       "router": {},
-      "EXPO_PUBLIC_API_URL": "http://192.168.4.114:8081",
+  "EXPO_PUBLIC_API_URL": "http://192.168.4.114:4000",
       "eas": {
         "projectId": "cd173d24-17cd-4986-add4-fdd48f48ef78"
       }

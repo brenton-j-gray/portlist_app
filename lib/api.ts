@@ -1,6 +1,10 @@
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL as string) || (global as any).__API_URL__ || 'http://localhost:4000';
+const API_URL = (process.env.EXPO_PUBLIC_API_URL as string)
+  || ((Constants as any)?.expoConfig?.extra?.EXPO_PUBLIC_API_URL as string)
+  || (global as any).__API_URL__
+  || 'http://localhost:4000';
 const TOKEN_KEY = 'cjp_token_v1';
 
 export async function saveToken(token: string) {
@@ -30,8 +34,8 @@ export async function apiLogin(email: string, password: string) {
   return post<AuthResponse>('/auth/login', { email, password });
 }
 
-export async function apiRegister(email: string, password: string) {
-  return post<AuthResponse>('/auth/register', { email, password });
+export async function apiRegister(email: string, password: string, username?: string) {
+  return post<AuthResponse>('/auth/register', { email, password, username });
 }
 
 // Health
@@ -71,5 +75,6 @@ export async function apiGetProfile() {
 }
 
 export async function apiSaveProfile(p: { fullName?: string; username?: string; bio?: string }) {
-  return authPut<{ profile: Profile }>('/profile', p);
+  const res = await authPut<{ profile: Profile }>('/profile', p);
+  return res;
 }

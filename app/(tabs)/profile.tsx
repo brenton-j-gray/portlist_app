@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 import { apiGetProfile, apiSaveProfile } from '../../lib/api';
 
 export default function ProfileScreen() {
   const { themeColors } = useTheme();
+  const { refreshProfile } = useAuth();
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
@@ -27,7 +29,6 @@ export default function ProfileScreen() {
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
-    title: { fontSize: 30, fontWeight: '600', marginBottom: 10, color: themeColors.text },
     input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 12, marginBottom: 10 },
     btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: 'white', fontWeight: '700' },
@@ -36,7 +37,15 @@ export default function ProfileScreen() {
   async function onSave() {
     try {
       setBusy(true);
-      await apiSaveProfile({ fullName: fullName.trim() || undefined, username: username.trim() || undefined, bio: bio.trim() || undefined });
+      // Send explicit empty strings to signal clearing a field
+      const payload = {
+        fullName: fullName.trim(),
+        username: username.trim(),
+        bio: bio.trim(),
+      };
+      await apiSaveProfile(payload);
+      // Refresh Auth header/userName immediately
+      await refreshProfile();
   // Return to Settings tab after a successful save
   router.replace('/(tabs)/settings');
     } catch (e: any) {
@@ -48,7 +57,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
+  {/* Header already renders the title */}
   <TextInput placeholder="Full name" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={fullName} onChangeText={setFullName} />
   <TextInput autoCapitalize="none" placeholder="Public username" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={username} onChangeText={setUsername} />
   <TextInput placeholder="Bio" placeholderTextColor={themeColors.textSecondary} style={[styles.input, { height: 120 }]} multiline value={bio} onChangeText={setBio} />

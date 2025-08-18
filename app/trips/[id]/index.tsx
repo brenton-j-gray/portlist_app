@@ -139,7 +139,7 @@ export default function TripDetail() {
           <Ionicons name="download-outline" size={20} color="#ffffff" />
         </Pressable>
         <Pressable
-          onPress={() => router.push(`/trips/${trip.id}/edit`)}
+          onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/edit' as any, params: { id: trip.id } } as any)}
           style={styles.headerIconBtn}
           accessibilityLabel="Edit Trip"
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -147,7 +147,6 @@ export default function TripDetail() {
           <Ionicons name="create-outline" size={20} color="#ffffff" />
         </Pressable>
         <Text style={styles.headerTitle}>{trip.title}</Text>
-        <Text style={styles.headerDates}>{trip.startDate ? formatDate(trip.startDate) : '?'} → {trip.endDate ? formatDate(trip.endDate) : '?'}</Text>
       </LinearGradient>
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
@@ -186,7 +185,7 @@ export default function TripDetail() {
 
   {/* Floating Add Log Button */}
       <Pressable
-        onPress={() => router.push(`/trips/${trip.id}/log-new`) }
+  onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/log-new' as any, params: { id: trip.id } } as any) }
   accessibilityLabel="Add log"
         style={{
           position: 'absolute',
@@ -215,7 +214,7 @@ export default function TripDetail() {
 function DayItem({ item, themeColors, tripId }: { item: DayLog, themeColors: any, tripId: string }) {
   return (
     <Pressable
-      onPress={() => router.push({ pathname: '/trips/[id]/log/[logId]/edit', params: { id: tripId, logId: item.id } })}
+  onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/log/[logId]' as any, params: { id: tripId, logId: item.id } } as any)}
       style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}
       accessibilityLabel={`Edit log ${item.date}`}
     >

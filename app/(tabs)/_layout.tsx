@@ -1,12 +1,11 @@
-import { Tabs, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
+import AppHeader from '../../components/navigation/AppHeader';
 
 export default function TabsLayout() {
   const { themeColors } = useTheme();
-  const { token, userName, userEmail } = useAuth();
   const screenOptions = useMemo(() => ({
     tabBarLabelStyle: {
       fontSize: 18,
@@ -24,30 +23,40 @@ export default function TabsLayout() {
     },
     tabBarActiveTintColor: themeColors.primary,
     tabBarInactiveTintColor: themeColors.textSecondary,
-    headerStyle: { backgroundColor: themeColors.card },
-    headerTitleStyle: { color: themeColors.text },
-    headerTintColor: themeColors.primaryDark,
-    headerRight: () => (
-      token ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
-          <Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>Logged in as:</Text>
-          <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>
-            {userName || userEmail || 'User'}
-          </Text>
-          <Pressable onPress={() => router.push('/(tabs)/profile' as any)} accessibilityLabel="Open profile">
-            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
-          </Pressable>
-        </View>
-      ) : null
-    ),
-  }), [themeColors, token, userName, userEmail]);
+  header: (props: any) => <AppHeader {...(props as any)} />,
+  }), [themeColors]);
   return (
     <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="trips" options={{ title: 'Trips' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="trips"
+        options={{
+          title: 'Trips',
+          headerShown: false,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'boat' : 'boat-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'settings' : 'settings-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
   {/* Hidden screen for editing profile; navigable from Settings */}
-  <Tabs.Screen name="profile" options={{ href: null }} />
+  <Tabs.Screen name="profile" options={{ href: null, title: 'Edit Profile' }} />
     </Tabs>
   );
 }

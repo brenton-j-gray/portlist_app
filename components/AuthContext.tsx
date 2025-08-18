@@ -8,8 +8,9 @@ type AuthContextType = {
   userEmail: string | null;
   userName: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,15 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const t = await getStoredToken();
       setToken(t);
       setLoading(false);
-      if (t) {
+    if (t) {
         // On app start with existing session, sync in background
         syncTripsBackground();
         // Try to hydrate profile name
         try {
           const res = await apiGetProfile();
           const p = (res as any)?.profile;
-          if (p?.username) setUserName(p.username);
-          else if (p?.fullName) setUserName(p.fullName);
+      const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+      setUserName(name);
         } catch {
           // ignore network/auth errors
         }
@@ -46,6 +47,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     userEmail,
     userName,
+    refreshProfile: async () => {
+      if (!token) return;
+      try {
+        const pr = await apiGetProfile();
+        const p = (pr as any)?.profile;
+        const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+        setUserName(name);
+      } catch { /* noop */ }
+    },
     login: async (email, password) => {
       const res = await apiLogin(email, password);
       if ((res as any).token) {
@@ -56,16 +66,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const pr = await apiGetProfile();
           const p = (pr as any)?.profile;
-          if (p?.username) setUserName(p.username);
-          else if (p?.fullName) setUserName(p.fullName);
+          const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+          setUserName(name);
         } catch { /* noop */ }
   syncTripsBackground();
       } else {
         throw new Error((res as any).error || 'Login failed');
       }
     },
-    register: async (email, password) => {
-      const res = await apiRegister(email, password);
+    register: async (email, password, username) => {
+      const res = await apiRegister(email, password, username);
       if ((res as any).token) {
         await saveToken((res as any).token);
         setToken((res as any).token);
@@ -74,8 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const pr = await apiGetProfile();
           const p = (pr as any)?.profile;
-          if (p?.username) setUserName(p.username);
-          else if (p?.fullName) setUserName(p.fullName);
+          const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+          setUserName(name);
         } catch { /* noop */ }
   syncTripsBackground();
       } else {

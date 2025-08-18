@@ -1,7 +1,11 @@
+import Constants from 'expo-constants';
 import { getToken } from './api';
 import { getTrips, saveTrips } from './storage';
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL as string) || (global as any).__API_URL__ || 'http://localhost:4000';
+const API_URL = (process.env.EXPO_PUBLIC_API_URL as string)
+  || ((Constants as any)?.expoConfig?.extra?.EXPO_PUBLIC_API_URL as string)
+  || (global as any).__API_URL__
+  || 'http://localhost:4000';
 
 async function authFetch(path: string, init?: RequestInit) {
   const token = await getToken();
