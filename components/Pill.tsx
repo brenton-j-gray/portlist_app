@@ -1,0 +1,73 @@
+import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
+import { useTheme } from './ThemeContext';
+
+type PillVariant = 'accent' | 'highlight' | 'primary';
+type PillSize = 'sm' | 'md';
+
+interface PillProps {
+  variant: PillVariant;
+  iconName?: React.ComponentProps<typeof Ionicons>['name'];
+  children: React.ReactNode;
+  size?: PillSize;
+  numberOfLines?: number;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
+}
+
+export function Pill({ variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle }: PillProps) {
+  const { themeColors, colorScheme } = useTheme();
+  const palette = themeColors as unknown as Record<'accent' | 'highlight' | 'primary', string>;
+  const token: string = palette[variant];
+  const paddingH = size === 'md' ? 10 : 8;
+  const paddingV = size === 'md' ? 6 : 4;
+  const fontSize = size === 'md' ? 14 : 13;
+  const iconSize = size === 'md' ? 16 : 14;
+
+  return (
+    <View
+      style={[
+        styles.base,
+        {
+          paddingHorizontal: paddingH,
+          paddingVertical: paddingV,
+          borderColor: token + '55',
+          backgroundColor: token + '22',
+        },
+        style,
+      ]}
+    >
+      {!!iconName && (
+        <Ionicons name={iconName as any} size={iconSize} color={token} style={{ marginRight: 6 }} />
+      )}
+      <Text
+        numberOfLines={numberOfLines}
+        ellipsizeMode="tail"
+        style={[
+          {
+            color: colorScheme === 'light' ? themeColors.text : token,
+            fontWeight: '700',
+            fontSize,
+            flexShrink: 1,
+          },
+          textStyle,
+        ]}
+      >
+        {children}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  base: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 999,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+});
+
+export default Pill;

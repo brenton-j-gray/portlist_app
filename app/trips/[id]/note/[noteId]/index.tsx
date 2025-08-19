@@ -3,6 +3,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Dimensions, FlatList, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pill } from '../../../../../components/Pill';
 import { useTheme } from '../../../../../components/ThemeContext';
 import { getTripById } from '../../../../../lib/storage';
 import { Note, Trip } from '../../../../../types';
@@ -29,7 +30,7 @@ function formatWeekdayDDMonthYYYY(d: Date) {
 
 export default function ViewNoteScreen() {
 	const { id, noteId } = useLocalSearchParams<{ id: string; noteId: string }>();
-	const { themeColors, colorScheme } = useTheme();
+	const { themeColors } = useTheme();
 	const insets = useSafeAreaInsets();
 	const [trip, setTrip] = useState<Trip | undefined>();
 	const [log, setLog] = useState<Note | undefined>();
@@ -135,27 +136,21 @@ export default function ViewNoteScreen() {
 
 				{!!log.weather && (
 					<View style={styles.infoRow}>
-						<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: themeColors.accent + '55', backgroundColor: themeColors.accent + '22' }}>
-							<Ionicons name={(log.weather + '-outline') as any} size={16} color={themeColors.accent} />
-							<Text style={{ fontSize: 14, fontWeight: '700', color: colorScheme === 'light' ? themeColors.text : themeColors.accent }}>{log.weather}</Text>
-						</View>
+						<Pill variant="accent" size="md" iconName={(log.weather + '-outline') as any}>{log.weather}</Pill>
 					</View>
 				)}
 
 				{!!(log.locationName || log.location) && (
 					<View style={styles.infoRow}>
-						<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: themeColors.highlight + '77', backgroundColor: themeColors.highlight + '22', maxWidth: '100%' }}>
-							<Ionicons name="location-outline" size={16} color={themeColors.highlight} />
-							<Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 14, fontWeight: '700', color: colorScheme === 'light' ? themeColors.text : themeColors.highlight }}>
-								{(() => {
-									const label = log.locationName || '';
-									if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-									const parts = label.split(',').map(p => p.trim()).filter(Boolean);
-									if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
-									return label || 'Location added';
-								})()}
-							</Text>
-						</View>
+						<Pill variant="highlight" size="md" iconName="location-outline">
+							{(() => {
+								const label = log.locationName || '';
+								if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
+								const parts = label.split(',').map(p => p.trim()).filter(Boolean);
+								if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
+								return label || 'Location added';
+							})()}
+						</Pill>
 					</View>
 				)}
 

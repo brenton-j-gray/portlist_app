@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../components/AuthContext';
+import { Pill } from '../../components/Pill';
 import { useTheme } from '../../components/ThemeContext';
 import { shortLocationLabel } from '../../lib/location';
 import { getTrips } from '../../lib/storage';
@@ -11,7 +12,7 @@ import { fetchCurrentWeather, keyToLabel, type WeatherKey } from '../../lib/weat
 import type { Note, Trip } from '../../types';
 
 export default function HomeScreen() {
-  const { themeColors, colorScheme } = useTheme();
+  const { themeColors } = useTheme();
   const { userName } = useAuth();
   const [highlights, setHighlights] = useState<{ tripId: string; log: Note; tripTitle: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -147,50 +148,24 @@ export default function HomeScreen() {
             <Text style={styles.infoPrimary}>{dateStr || formatWeekdayDDMonthYYYY(new Date())}</Text>
             <View style={styles.infoRow}>
               {(weatherKey && weatherKey !== 'unknown') || tempF != null ? (
-                <View style={[
-                  styles.pill,
-                  {
-                    borderColor: themeColors.accent + '55',
-                    // Slightly stronger tint for better separation on light backgrounds
-                    backgroundColor: themeColors.accent + '22',
-                  },
-                ]}>
-                  <Ionicons name={(
+                <Pill
+                  variant="accent"
+                  iconName={(
                     weatherKey === 'sunny' ? 'sunny-outline' :
                     weatherKey === 'cloudy' || weatherKey === 'fog' ? 'cloud-outline' :
                     weatherKey === 'rain' ? 'rainy-outline' :
                     weatherKey === 'storm' ? 'thunderstorm-outline' :
                     weatherKey === 'snow' ? 'snow-outline' :
                     'partly-sunny-outline'
-                  ) as any} size={14} color={themeColors.accent} />
-                  <Text style={[
-                    styles.pillText,
-                    { color: colorScheme === 'light' ? themeColors.text : themeColors.accent },
-                  ]}>
-                    {keyToLabel(weatherKey)}{tempF != null ? ` • ${tempF}°F` : ''}
-                  </Text>
-                </View>
+                  ) as any}
+                >
+                  {keyToLabel(weatherKey)}{tempF != null ? ` • ${tempF}°F` : ''}
+                </Pill>
               ) : null}
               {!!whereText && (
-                <View style={[
-                  styles.pill,
-                  {
-                    borderColor: themeColors.highlight + '77',
-                    // Stronger tint on light mode to help the dark text pop
-                    backgroundColor: themeColors.highlight + '22',
-                  },
-                ]}>
-                  <Ionicons name="location-outline" size={14} color={themeColors.highlight} />
-                  <Text
-                    style={[
-                      styles.pillText,
-                      { color: colorScheme === 'light' ? themeColors.text : themeColors.highlight },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {whereText}
-                  </Text>
-                </View>
+                <Pill variant="highlight" iconName="location-outline">
+                  {whereText}
+                </Pill>
               )}
             </View>
           </View>
@@ -222,36 +197,22 @@ export default function HomeScreen() {
               <Text style={styles.cardSub} numberOfLines={1} ellipsizeMode="tail">{formatWeekdayDDMonthYYYY(new Date(h.log.date))} • {h.tripTitle}</Text>
               <View style={styles.tagRow}>
                 {!!h.log.weather && (
-                  <View style={[styles.tag, { borderColor: themeColors.accent + '55', backgroundColor: themeColors.accent + '22', maxWidth: '100%' }]}>
-                    <Ionicons name={(h.log.weather + '-outline') as any} size={14} color={themeColors.accent} />
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={{ color: colorScheme === 'light' ? themeColors.text : themeColors.accent, fontWeight: '700', flexShrink: 1 }}
-                    >
-                      {h.log.weather}
-                    </Text>
-                  </View>
+                  <Pill variant="accent" iconName={(h.log.weather + '-outline') as any}>
+                    {h.log.weather}
+                  </Pill>
                 )}
                 {!!(h.log.locationName || h.log.location) && (
-                  <View style={[styles.tag, { borderColor: themeColors.highlight + '77', backgroundColor: themeColors.highlight + '22', maxWidth: '100%' }]}>
-                    <Ionicons name="location-outline" size={14} color={themeColors.highlight} />
-                    <Text
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                      style={{ color: colorScheme === 'light' ? themeColors.text : themeColors.highlight, fontWeight: '700', flexShrink: 1 }}
-                    >
-                      {(() => {
-                        const label = h.log.locationName || '';
-                        // If we already stored short format like "City, CC", show as-is
-                        if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-                        // Otherwise, try to shorten "City, Region, Country" -> "City, Country"
-                        const parts = label.split(',').map(p => p.trim()).filter(Boolean);
-                        if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
-                        return label || 'Location added';
-                      })()}
-                    </Text>
-                  </View>
+                  <Pill variant="highlight" iconName="location-outline">
+                    {(() => {
+                      const label = h.log.locationName || '';
+                      // If we already stored short format like "City, CC", show as-is
+                      if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
+                      // Otherwise, try to shorten "City, Region, Country" -> "City, Country"
+                      const parts = label.split(',').map(p => p.trim()).filter(Boolean);
+                      if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
+                      return label || 'Location added';
+                    })()}
+                  </Pill>
                 )}
               </View>
             </View>

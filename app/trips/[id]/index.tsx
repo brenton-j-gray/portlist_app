@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pill } from '../../../components/Pill';
 import { useTheme } from '../../../components/ThemeContext';
 import { exportTripJSON } from '../../../lib/exportTrip';
 import { getTripById } from '../../../lib/storage';
@@ -332,26 +333,20 @@ function DayItem({ item, themeColors, colorScheme, tripId }: { item: Note, theme
         {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.notes}</Text>}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
           {!!item.weather && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: themeColors.accent + '55', backgroundColor: themeColors.accent + '22', maxWidth: '100%' }}>
-              <Ionicons name={(item.weather + '-outline') as any} size={14} color={themeColors.accent} />
-              <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: colorScheme === 'light' ? themeColors.text : themeColors.accent, fontWeight: '700', flexShrink: 1 }}>
-                {item.weather}
-              </Text>
-            </View>
+            <Pill variant="accent" iconName={(item.weather + '-outline') as any}>
+              {item.weather}
+            </Pill>
           )}
           {!!(item.locationName || item.location) && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1, borderColor: themeColors.highlight + '77', backgroundColor: themeColors.highlight + '22', maxWidth: '100%' }}>
-              <Ionicons name="location-outline" size={14} color={themeColors.highlight} />
-              <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: colorScheme === 'light' ? themeColors.text : themeColors.highlight, fontWeight: '700', flexShrink: 1 }}>
-                {(() => {
-                  const label = item.locationName || '';
-                  if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-                  const parts = label.split(',').map(p => p.trim()).filter(Boolean);
-                  if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
-                  return label || 'Location added';
-                })()}
-              </Text>
-            </View>
+            <Pill variant="highlight" iconName="location-outline">
+              {(() => {
+                const label = item.locationName || '';
+                if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
+                const parts = label.split(',').map(p => p.trim()).filter(Boolean);
+                if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
+                return label || 'Location added';
+              })()}
+            </Pill>
           )}
         </View>
       </View>
