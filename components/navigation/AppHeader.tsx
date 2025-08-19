@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, usePathname } from 'expo-router';
 import React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
@@ -11,6 +11,7 @@ import { useTheme } from '../ThemeContext';
 export default function AppHeader(props: any) {
   const { themeColors } = useTheme();
   const { token, userName, userEmail } = useAuth();
+  const { userAvatar } = useAuth() as any;
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
@@ -22,10 +23,10 @@ export default function AppHeader(props: any) {
     if (parts.length > 0 && parts[parts.length - 1] === 'index') {
       parts.pop();
     }
-    // Example parts: ['(tabs)', 'trips', 'abc', 'log', 'def', 'edit']
+  // Example parts: ['(tabs)', 'trips', 'abc', 'note', 'def', 'edit']
 
-    // Handle Profile under Settings
-    if (parts[0] === '(tabs)' && parts[1] === 'profile') {
+  // Handle Profile/Security under Settings
+  if (parts[0] === '(tabs)' && (parts[1] === 'profile' || parts[1] === 'security')) {
       return '/(tabs)/settings';
     }
     // Also handle plain '/profile' path
@@ -48,19 +49,19 @@ export default function AppHeader(props: any) {
         return '/(tabs)/trips';
       }
 
-      // /(tabs)/trips/[id]/edit or /(tabs)/trips/[id]/log-new -> parent [id]
-  if (parts.length === 4 && (parts[3] === 'edit' || parts[3] === 'log-new')) {
+    // /(tabs)/trips/[id]/edit or /(tabs)/trips/[id]/note-new -> parent [id]
+  if (parts.length === 4 && (parts[3] === 'edit' || parts[3] === 'note-new')) {
         return `/(tabs)/trips/${parts[2]}`;
       }
 
-      // /(tabs)/trips/[id]/log/[logId] -> parent [id]
-  if (parts.length === 5 && parts[3] === 'log') {
+    // /(tabs)/trips/[id]/note/[noteId] -> parent [id]
+  if (parts.length === 5 && parts[3] === 'note') {
         return `/(tabs)/trips/${parts[2]}`;
       }
 
-      // /(tabs)/trips/[id]/log/[logId]/edit -> parent log/[logId]
-  if (parts.length === 6 && parts[3] === 'log' && parts[5] === 'edit') {
-        return `/(tabs)/trips/${parts[2]}/log/${parts[4]}`;
+    // /(tabs)/trips/[id]/note/[noteId]/edit -> parent note/[noteId]
+  if (parts.length === 6 && parts[3] === 'note' && parts[5] === 'edit') {
+    return `/(tabs)/trips/${parts[2]}/note/${parts[4]}`;
       }
     }
 
@@ -74,19 +75,19 @@ export default function AppHeader(props: any) {
         return '/(tabs)/trips';
       }
 
-      // /trips/[id]/edit or /trips/[id]/log-new -> parent [id]
-      if (parts.length === 3 && (parts[2] === 'edit' || parts[2] === 'log-new')) {
+      // /trips/[id]/edit or /trips/[id]/note-new -> parent [id]
+      if (parts.length === 3 && (parts[2] === 'edit' || parts[2] === 'note-new')) {
         return `/(tabs)/trips/${parts[1]}`;
       }
 
-      // /trips/[id]/log/[logId] -> parent [id]
-      if (parts.length === 4 && parts[2] === 'log') {
+      // /trips/[id]/note/[noteId] -> parent [id]
+      if (parts.length === 4 && parts[2] === 'note') {
         return `/(tabs)/trips/${parts[1]}`;
       }
 
-      // /trips/[id]/log/[logId]/edit -> parent log/[logId]
-      if (parts.length === 5 && parts[2] === 'log' && parts[4] === 'edit') {
-        return `/(tabs)/trips/${parts[1]}/log/${parts[3]}`;
+      // /trips/[id]/note/[noteId]/edit -> parent note/[noteId]
+      if (parts.length === 5 && parts[2] === 'note' && parts[4] === 'edit') {
+        return `/(tabs)/trips/${parts[1]}/note/${parts[3]}`;
       }
     }
 
@@ -152,7 +153,11 @@ export default function AppHeader(props: any) {
               onPress={() => router.push('/(tabs)/profile' as any)}
               accessibilityLabel="Open profile"
             >
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </Pressable>
           </View>
         ) : null}

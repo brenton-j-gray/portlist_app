@@ -1,7 +1,7 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../../components/ThemeContext';
 import { addTrip, uid } from '../../lib/storage';
 import { Trip } from '../../types';
@@ -36,7 +36,7 @@ export default function NewTripScreen() {
     const v = toISODate(date);
     setStartDate(v);
     // If end is before start, clear it
-    if (endDate && new Date(endDate) < date) setEndDate('');
+  if (endDate && parseISODate(endDate) < date) setEndDate('');
   }
 
   function onChangeEnd(_event: DateTimePickerEvent, date?: Date) {
@@ -48,6 +48,15 @@ export default function NewTripScreen() {
 
   async function onSave() {
     if (!title.trim()) return;
+    // Validate end >= start when both provided
+    if (startDate && endDate) {
+      const s = parseISODate(startDate).getTime();
+      const e = parseISODate(endDate).getTime();
+      if (e < s) {
+        Alert.alert('Invalid dates', 'End date cannot be before start date.');
+        return;
+      }
+    }
     const trip: Trip = {
       id: uid(),
       title: title.trim(),

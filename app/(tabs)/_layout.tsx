@@ -23,6 +23,7 @@ export default function TabsLayout() {
     },
     tabBarActiveTintColor: themeColors.primary,
     tabBarInactiveTintColor: themeColors.textSecondary,
+  tabBarHideOnKeyboard: true,
   header: (props: any) => <AppHeader {...(props as any)} />,
   }), [themeColors]);
   return (
@@ -57,6 +58,8 @@ export default function TabsLayout() {
       />
   {/* Hidden screen for editing profile; navigable from Settings */}
   <Tabs.Screen name="profile" options={{ href: null, title: 'Edit Profile' }} />
+  {/* Hidden screen for security settings; navigable from Settings */}
+  <Tabs.Screen name="security" options={{ href: null, title: 'Security' }} />
     </Tabs>
   );
 }

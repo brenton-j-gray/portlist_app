@@ -1,25 +1,26 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
-import { useTheme } from '../../../../../components/ThemeContext';
-import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../../../lib/media';
-import { getTripById, upsertTrip } from '../../../../../lib/storage';
-import { DayLog, Trip } from '../../../../../types';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, UIManager, View } from 'react-native';
+import { useTheme } from '../../../components/ThemeContext';
+import { shortLocationLabel } from '../../../lib/location';
+import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../lib/media';
+import { getTripById, uid, upsertTrip } from '../../../lib/storage';
+import { Note, Trip } from '../../../types';
 
-export default function EditDayLogScreen() {
+export default function NewNoteScreen() {
   const { themeColors } = useTheme();
-  const { id, logId } = useLocalSearchParams<{ id: string; logId: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [trip, setTrip] = useState<Trip | undefined>();
-  const [log, setLog] = useState<DayLog | undefined>();
   const [date, setDate] = useState<string>('');
   const [title, setTitle] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [weather, setWeather] = useState<string>('');
-  const [notes, setNotes] = useState<string>('');
+  const [weather, setWeather] = useState<string>(''); // codes like 'sunny','cloudy','rain','snow','storm'
+  const [notes, setNotes] = useState<string>(''); // kept for backward compatibility
   const [photos, setPhotos] = useState<{ uri: string; caption?: string }[]>([]);
   const [location, setLocation] = useState<{ lat: number; lng: number } | undefined>(undefined);
   const [locationLabel, setLocationLabel] = useState<string>('');
@@ -27,29 +28,39 @@ export default function EditDayLogScreen() {
   const MapRef = useRef<any>(null);
   const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any }>(null);
   const [locating, setLocating] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  function toISODate(d: Date) {
+    const y = d.getFullYear();
+    const m = `${d.getMonth() + 1}`.padStart(2, '0');
+    const day = `${d.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  function parseISODate(s: string | undefined): Date {
+    if (!s) return new Date();
+    const [y, m, d] = s.split('-').map((p) => parseInt(p, 10));
+    if (!y || !m || !d) return new Date();
+    return new Date(y, m - 1, d);
+  }
+
+  function onChangeDate(_event: DateTimePickerEvent, picked?: Date) {
+    if (Platform.OS === 'android') setShowDatePicker(false);
+    if (picked) setDate(toISODate(picked));
+  }
 
   useEffect(() => {
     (async () => {
-      if (!id || !logId) return;
+      if (!id) return;
       const t = await getTripById(id);
-      if (!t) return;
       setTrip(t);
-      const found = t.days.find(d => d.id === logId);
-      if (found) {
-        setLog(found);
-        setDate(found.date || '');
-        setTitle(found.title || '');
-        setDescription(found.description || '');
-        setWeather(found.weather || '');
-        setNotes(found.notes || '');
-        if (found.location) setLocation(found.location);
-        if (found.photos?.length) setPhotos(found.photos);
-        else if (found.photoUri) setPhotos([{ uri: found.photoUri }]);
-      }
-      // Request permissions for media and camera
+      // Request media library & camera permission
       await ImagePicker.requestMediaLibraryPermissionsAsync();
       await ImagePicker.requestCameraPermissionsAsync();
+      // Request location (optional)
       await Location.requestForegroundPermissionsAsync();
+      // Dynamically import map only in dev client or standalone (not Expo Go),
+      // and only if the native AIRMap view manager exists in this binary
       try {
         const inGo = Constants.appOwnership === 'expo';
         const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
@@ -63,9 +74,9 @@ export default function EditDayLogScreen() {
         setMapComponents(null);
       }
     })();
-  }, [id, logId]);
+  }, [id]);
 
-  // Resolve human-readable location label
+  // Resolve a short human-readable label for the current location
   useEffect(() => {
     (async () => {
       if (!location) { setLocationLabel(''); return; }
@@ -73,8 +84,7 @@ export default function EditDayLogScreen() {
         const results = await Location.reverseGeocodeAsync({ latitude: location.lat, longitude: location.lng });
         if (results && results.length) {
           const r = results[0];
-          const parts = [r.city || r.subregion, r.region, r.country].filter(Boolean);
-          const label = parts.join(', ');
+          const label = shortLocationLabel(r as any, location.lat, location.lng);
           setLocationLabel(label || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`);
         } else {
           setLocationLabel(`${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`);
@@ -85,16 +95,66 @@ export default function EditDayLogScreen() {
     })();
   }, [location]);
 
+  async function onSave() {
+    if (!trip) return;
+    // Validate date within trip range if trip has dates
+    if (date) {
+      const d = parseISODate(date).getTime();
+      if (trip.startDate) {
+        const s = parseISODate(trip.startDate).getTime();
+        if (d < s) {
+          Alert.alert('Invalid date', 'Note date cannot be before the trip start date.');
+          return;
+        }
+      }
+      if (trip.endDate) {
+        const e = parseISODate(trip.endDate).getTime();
+        if (d > e) {
+          Alert.alert('Invalid date', 'Note date cannot be after the trip end date.');
+          return;
+        }
+      }
+    }
+    const persisted = await persistPhotoUris(photos);
+    const log: Note = {
+      id: uid(),
+      date: date || toISODate(new Date()),
+      title: title || undefined,
+      description: description || undefined,
+      weather: weather || undefined,
+      notes: notes || undefined,
+      photos: persisted,
+      location: location ? { lat: location.lat, lng: location.lng } : undefined,
+      locationName: location ? (locationLabel || undefined) : undefined,
+    };
+    const updated: Trip = { ...trip, days: [...trip.days, log] };
+    await upsertTrip(updated);
+    router.replace(`/trips/${trip.id}`);
+  }
+
   async function pickFromLibrary() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsMultipleSelection: true,
-      selectionLimit: 10,
       quality: 0.8,
+      selectionLimit: 6,
     });
     if (!result.canceled) {
       const newPhotos = result.assets.map(a => ({ uri: a.uri }));
       setPhotos(prev => [...prev, ...newPhotos]);
+    }
+  }
+
+  async function takePhoto() {
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      const mapped = await Promise.all(
+        result.assets.map(async a => ({ uri: await saveCameraPhotoToLibrary(a.uri) }))
+      );
+      setPhotos(prev => [...prev, ...mapped]);
     }
   }
 
@@ -120,6 +180,7 @@ export default function EditDayLogScreen() {
       const lat = loc.coords.latitude;
       const lng = loc.coords.longitude;
       setLocation({ lat, lng });
+      // Center/animate map to the new pin if map is available (defer to next frame)
       try {
         const region = { latitude: lat, longitude: lng, latitudeDelta: 0.02, longitudeDelta: 0.02 };
         requestAnimationFrame(() => {
@@ -149,72 +210,44 @@ export default function EditDayLogScreen() {
     location
   );
 
-  async function takePhoto() {
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      const mapped = await Promise.all(
-        result.assets.map(async a => ({ uri: await saveCameraPhotoToLibrary(a.uri) }))
-      );
-      setPhotos(prev => [...prev, ...mapped]);
-    }
-  }
-
-  function removePhotoAt(index: number) {
-    setPhotos(prev => prev.filter((_, i) => i !== index));
-  }
-
-  async function onSave() {
-    if (!trip || !log) return;
-    const persisted = await persistPhotoUris(photos);
-    const updatedLog: DayLog = {
-      ...log,
-      date: date || log.date,
-  title: title || undefined,
-  description: description || undefined,
-  weather: weather || undefined,
-  notes: notes || undefined,
-      photos: persisted,
-  location: location ? { lat: location.lat, lng: location.lng } : undefined,
-    locationName: location ? (locationLabel || undefined) : undefined,
-      photoUri: undefined,
-    };
-    const nextDays = trip.days.map(d => (d.id === log.id ? updatedLog : d));
-    const updatedTrip: Trip = { ...trip, days: nextDays };
-    await upsertTrip(updatedTrip);
-    router.replace(`/trips/${trip.id}`);
-  }
-
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
     input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 10, marginBottom: 10 },
     label: { fontSize: 14, fontWeight: '500', marginBottom: 4, marginLeft: 2, color: themeColors.textSecondary },
-  btnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', flex: 1 },
+    dateBtn: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, borderRadius: 8, padding: 12, marginBottom: 10 },
+    dateText: { color: themeColors.text },
+    btnRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+    btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', flex: 1 },
     btnText: { color: themeColors.badgeText, fontWeight: '700' },
     photoList: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginBottom: 12 },
-    photoWrap: { position: 'relative' },
     photoThumb: { width: 96, height: 96, borderRadius: 8, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder },
-    removeBtn: { position: 'absolute', top: -8, right: -8, backgroundColor: themeColors.danger, borderRadius: 999, padding: 4 },
     saveBtn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', opacity: canSave ? 1 : 0.6 },
     weatherRow: { flexDirection: 'row', gap: 10, marginBottom: 10, flexWrap: 'wrap' },
     weatherChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
     weatherChipActive: { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' },
-  mapBox: { height: 220, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: themeColors.menuBorder, marginBottom: 10 },
+    mapBox: { height: 220, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: themeColors.menuBorder, marginBottom: 10 },
+    toggleRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+    toggleChip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
+    toggleChipActive: { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' },
   }), [themeColors, canSave]);
-
-  if (!trip || !log) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.background }}><Text style={{ color: themeColors.textSecondary }}>Loading log...</Text></View>;
-  }
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
-  {/* Header provides the screen title */}
+      {/* Header provides the screen title */}
       <Text style={styles.label}>Title</Text>
       <TextInput style={styles.input} placeholder="Title (optional)" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
-      <TextInput style={styles.input} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={themeColors.textSecondary} value={date} onChangeText={setDate} />
+      <Text style={styles.label}>Date</Text>
+      <Pressable style={styles.dateBtn} onPress={() => setShowDatePicker(true)} accessibilityLabel="Choose date">
+        <Text style={styles.dateText}>{date ? `Date: ${date}` : 'Pick a date'}</Text>
+      </Pressable>
+      {showDatePicker && (
+        <DateTimePicker
+          value={parseISODate(date)}
+          mode="date"
+          display={Platform.select({ android: 'calendar', ios: 'spinner', default: 'default' }) as any}
+          onChange={onChangeDate}
+        />
+      )}
       <Text style={styles.label}>Weather</Text>
       <View style={styles.weatherRow}>
         {weatherOptions.map(opt => (
@@ -249,17 +282,20 @@ export default function EditDayLogScreen() {
             </MapComponents.MapView>
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-            <Pressable onPress={() => setMapType('standard')} style={[{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card }, mapType === 'standard' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' }]} accessibilityLabel="Map view">
+          {/* Map type toggles */}
+          <View style={styles.toggleRow}>
+            <Pressable onPress={() => setMapType('standard')} style={[styles.toggleChip, mapType === 'standard' && styles.toggleChipActive]} accessibilityLabel="Map view">
               <Text style={{ color: mapType === 'standard' ? themeColors.primaryDark : themeColors.textSecondary }}>Map</Text>
             </Pressable>
-            <Pressable onPress={() => setMapType('hybrid')} style={[{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card }, mapType === 'hybrid' && { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' }]} accessibilityLabel="Satellite view with labels">
+            <Pressable onPress={() => setMapType('hybrid')} style={[styles.toggleChip, mapType === 'hybrid' && styles.toggleChipActive]} accessibilityLabel="Satellite view with labels">
               <Text style={{ color: mapType === 'hybrid' ? themeColors.primaryDark : themeColors.textSecondary }}>Satellite</Text>
             </Pressable>
           </View>
         </>
       ) : (
-        <Text style={{ color: themeColors.textSecondary, marginBottom: 8 }}>Map preview is unavailable in this build. You can still tag with your current location.</Text>
+        <Text style={{ color: themeColors.textSecondary, marginBottom: 8 }}>
+          Map preview is unavailable in this build. You can still tag with your current location.
+        </Text>
       )}
       <View style={styles.btnRow}>
         <Pressable onPress={useCurrentLocation} disabled={locating} style={[styles.btn, { backgroundColor: themeColors.actionBtnBg, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }, locating && { opacity: 0.7 }]} accessibilityLabel="Use current location">
@@ -271,12 +307,13 @@ export default function EditDayLogScreen() {
           </Pressable>
         )}
       </View>
+      
       <Text style={styles.label}>Description</Text>
       <TextInput style={[styles.input, { height: 120 }]} multiline placeholder="Description (optional)" placeholderTextColor={themeColors.textSecondary} value={description} onChangeText={setDescription} />
       <Text style={styles.label}>Notes</Text>
       <TextInput style={[styles.input, { height: 100 }]} multiline placeholder="Notes (optional)" placeholderTextColor={themeColors.textSecondary} value={notes} onChangeText={setNotes} />
       <View style={styles.btnRow}>
-        <Pressable onPress={pickFromLibrary} style={styles.btn} accessibilityLabel="Add photos from library">
+        <Pressable onPress={pickFromLibrary} style={styles.btn} accessibilityLabel="Pick photos from library">
           <Text style={styles.btnText}>Add Photos</Text>
         </Pressable>
         <Pressable onPress={takePhoto} style={styles.btn} accessibilityLabel="Take a photo">
@@ -286,20 +323,14 @@ export default function EditDayLogScreen() {
       {!!photos.length && (
         <View style={styles.photoList}>
           {photos.map((p, idx) => (
-            <View style={styles.photoWrap} key={`${p.uri}-${idx}`}>
-              <Image source={{ uri: p.uri }} style={styles.photoThumb} />
-              <Pressable onPress={() => removePhotoAt(idx)} style={styles.removeBtn} accessibilityLabel="Remove photo">
-                <Ionicons name="close" size={16} color={themeColors.badgeText} />
-              </Pressable>
-            </View>
+            <Image key={`${p.uri}-${idx}`} source={{ uri: p.uri }} style={styles.photoThumb} />
           ))}
         </View>
       )}
-      
-
-  <Pressable onPress={onSave} style={styles.saveBtn} disabled={!canSave}>
-        <Text style={styles.btnText}>Save Changes</Text>
+      <Pressable onPress={onSave} style={styles.saveBtn} disabled={!canSave}>
+        <Text style={styles.btnText}>Save Note</Text>
       </Pressable>
     </ScrollView>
   );
 }
+// styles via useMemo above

@@ -1,4 +1,4 @@
-export type DayLog = {
+export type Note = {
   id: string;
   date: string; // ISO date string
   title?: string;
@@ -17,7 +17,8 @@ export type Trip = {
   ship?: string;
   startDate?: string; // ISO date
   endDate?: string; // ISO date
+  completed?: boolean; // explicitly marked as completed by user
   ports?: string[];
-  days: DayLog[];
+  days: Note[];
   createdAt: number;
 };

@@ -10,6 +10,8 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [mfaStage, setMfaStage] = useState(false);
+  const [totp, setTotp] = useState('');
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: themeColors.background, alignItems: 'center', justifyContent: 'center', padding: 24 },
@@ -27,7 +29,17 @@ export default function LoginScreen() {
   async function onLogin() {
     try {
       setBusy(true);
-      await login(email.trim().toLowerCase(), password);
+      // Attempt login; if MFA required, prompt for TOTP
+      const res = await (await import('../../lib/api')).apiLogin(email.trim().toLowerCase(), password, mfaStage ? totp.trim() : undefined);
+      if ('mfaRequired' in res && res.mfaRequired) {
+        setMfaStage(true);
+        return;
+      }
+      if ('token' in res && res.token) {
+        // Delegate token handling to AuthContext.login for now by reusing its flow
+        await login(email.trim().toLowerCase(), password);
+        return;
+      }
       router.replace('/(tabs)');
     } catch (e: any) {
       Alert.alert('Login failed', e?.message || 'Check your email and password.');
@@ -42,6 +54,9 @@ export default function LoginScreen() {
         <Text style={styles.title}>Sign in</Text>
   <TextInput autoCapitalize="none" placeholder="Email" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={email} onChangeText={setEmail} keyboardType="email-address" />
   <TextInput placeholder="Password" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={password} onChangeText={setPassword} secureTextEntry />
+  {mfaStage && (
+    <TextInput placeholder="6-digit code" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={totp} onChangeText={setTotp} keyboardType="number-pad" />
+  )}
         <Pressable onPress={onLogin} style={styles.btn} disabled={busy}>
           <Text style={styles.btnText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
         </Pressable>

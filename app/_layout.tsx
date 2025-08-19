@@ -5,9 +5,10 @@ import { useFonts } from 'expo-font';
 import type { Href } from 'expo-router';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo } from 'react';
+import { AppState, BackHandler, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
+import { AppLockProvider } from '../components/AppLockContext';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
 import { pushTrips, syncTripsBackground } from '../lib/sync';
@@ -32,12 +33,37 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 
 function AppLayoutInner() {
   const { themeColors, colorScheme } = useTheme();
-  const { token, userName, userEmail } = useAuth();
+  const { token, userName, userEmail, userAvatar } = useAuth();
+  const pathname = usePathname();
   // Load custom fonts (used by Home greeting, etc.)
   const [fontsLoaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     Pacifico: Pacifico_400Regular,
   });
+  // Shared: compute hierarchical parent path for replace-navigation
+  const getParentPath = useMemo(() => (path: string | null | undefined): string | undefined => {
+    if (!path) return undefined;
+    const parts = (path || '/').split('/').filter(Boolean);
+    if (parts.length > 0 && parts[parts.length - 1] === 'index') parts.pop();
+    const isTabsTrips = parts[0] === '(tabs)' && parts[1] === 'trips';
+    const isRootTrips = parts[0] === 'trips';
+    if (isTabsTrips) {
+      if (parts.length === 2) return undefined; // /(tabs)/trips root
+      if (parts.length === 3) return '/(tabs)/trips';
+  if (parts.length === 4) return `/(tabs)/trips/${parts[2]}`; // edit/note-new
+  if (parts.length === 5 && parts[3] === 'note') return `/(tabs)/trips/${parts[2]}`;
+  if (parts.length === 6 && parts[3] === 'note' && parts[5] === 'edit') return `/(tabs)/trips/${parts[2]}/note/${parts[4]}`;
+    } else if (isRootTrips) {
+      if (parts.length === 1) return '/(tabs)/trips';
+      if (parts.length === 2) return '/(tabs)/trips';
+      if (parts.length >= 3) return `/(tabs)/trips/${parts[1]}`;
+  } else if (parts[0] === '(tabs)' && (parts[1] === 'profile' || parts[1] === 'security')) {
+      return '/(tabs)/settings';
+    } else if (parts.length > 1) {
+      return '/' + parts.slice(0, parts.length - 1).join('/');
+    }
+    return undefined; // tabs root or no parent
+  }, []);
   useEffect(() => { syncTripsBackground(); }, []);
   // Auto-backup on app focus and at interval when enabled in Settings
   useEffect(() => {
@@ -72,58 +98,27 @@ function AppLayoutInner() {
       clearInterval(id);
     };
   }, [token]);
+  // Android hardware back: mirror our hierarchical replace navigation
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      const parent = getParentPath(pathname);
+      if (parent && parent !== pathname) {
+        router.replace(parent as any);
+        return true; // handled
+      }
+      return false; // allow default (navigate back/exit)
+    });
+    return () => sub.remove();
+  }, [pathname, getParentPath]);
+
   if (!fontsLoaded) return null;
+
   const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
-    const pathname = usePathname();
     // Compute parent route if `to` not provided, using canonical /(tabs)/trips hierarchy
     let computedTo: string | undefined = typeof to === 'string' ? to : undefined;
     if (!computedTo) {
-      const parts = (pathname || '/').split('/').filter(Boolean);
-      // Normalize trailing 'index' so /x/y/index -> /x/y
-      if (parts.length > 0 && parts[parts.length - 1] === 'index') {
-        parts.pop();
-      }
-      // Normalize to (tabs) grouped routes if we're under trips
-      const isTabsTrips = parts[0] === '(tabs)' && parts[1] === 'trips';
-      const isRootTrips = parts[0] === 'trips';
-
-      if (isTabsTrips) {
-        // /(tabs)/trips -> no parent
-        if (parts.length === 2) {
-          computedTo = undefined;
-        } else if (parts.length === 3) {
-          // /(tabs)/trips/new or /(tabs)/trips/[id]
-          computedTo = '/(tabs)/trips';
-        } else if (parts.length === 4) {
-          // /(tabs)/trips/[id]/edit or log-new
-          computedTo = `/(tabs)/trips/${parts[2]}`;
-        } else if (parts.length === 5 && parts[3] === 'log') {
-          // /(tabs)/trips/[id]/log/[logId]
-          computedTo = `/(tabs)/trips/${parts[2]}`;
-        } else if (parts.length === 6 && parts[3] === 'log' && parts[5] === 'edit') {
-          // /(tabs)/trips/[id]/log/[logId]/edit
-          computedTo = `/(tabs)/trips/${parts[2]}/log/${parts[4]}`;
-        }
-      } else if (isRootTrips) {
-        // Legacy/top-level trips paths: redirect to tabs-based parents
-        if (parts.length === 1) {
-          computedTo = '/(tabs)/trips';
-        } else if (parts.length === 2) {
-          computedTo = '/(tabs)/trips';
-        } else if (parts.length >= 3) {
-          computedTo = `/(tabs)/trips/${parts[1]}`;
-        }
-      } else if (parts[0] === '(tabs)' && parts[1] === 'profile') {
-        // Profile should go up to Settings
-        computedTo = '/(tabs)/settings';
-      } else if (parts.length > 1) {
-        // Generic fallback: drop the last segment
-        const parentParts = parts.slice(0, parts.length - 1);
-        computedTo = '/' + parentParts.join('/');
-      } else {
-        // Fallback to tabs root
-        computedTo = '/(tabs)' as any;
-      }
+      computedTo = getParentPath(pathname);
     }
 
     const displayLabel = label ?? (
@@ -154,14 +149,19 @@ function AppLayoutInner() {
         headerTitleStyle: { color: themeColors.text },
         headerTintColor: themeColors.primaryDark,
         headerShadowVisible: false,
+        gestureEnabled: false,
       }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-  <Stack.Screen name="trips/[id]/log/[logId]/index" options={{ title: 'View Log', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
+  <Stack.Screen name="trips/[id]/note/[noteId]/index" options={{ title: 'View Note', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
           token ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
               <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </View>
           ) : null
         ) }} />
@@ -169,15 +169,23 @@ function AppLayoutInner() {
           token ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
       <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </View>
           ) : null
         ) }} />
-  <Stack.Screen name="trips/[id]/log-new" options={{ title: 'New Log', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
+  <Stack.Screen name="trips/[id]/note-new" options={{ title: 'New Note', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
           token ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
       <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </View>
           ) : null
         ) }} />
@@ -185,15 +193,23 @@ function AppLayoutInner() {
           token ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
       <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </View>
           ) : null
         ) }} />
-  <Stack.Screen name="trips/[id]/log/[logId]/edit" options={{ title: 'Edit Log', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
+  <Stack.Screen name="trips/[id]/note/[noteId]/edit" options={{ title: 'Edit Note', headerBackVisible: false, contentStyle: { backgroundColor: themeColors.background }, headerLeft: () => <BackButton />, headerRight: () => (
           token ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 8 }}>
       <Text style={{ color: themeColors.text, fontWeight: '700', maxWidth: 120 }} numberOfLines={1}>{userName || userEmail || 'User'}</Text>
-              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              {userAvatar ? (
+                <Image source={{ uri: userAvatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+              ) : (
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: themeColors.menuBorder }} />
+              )}
             </View>
           ) : null
         ) }} />
@@ -206,7 +222,7 @@ function AppLayoutInner() {
           ) : null
         ) }} />
       </Stack>
-    </View>
+      </View>
   );
 }
 
@@ -215,7 +231,9 @@ export default function AppLayout() {
     <RootErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <AppLayoutInner />
+          <AppLockProvider>
+            <AppLayoutInner />
+          </AppLockProvider>
         </AuthProvider>
       </ThemeProvider>
     </RootErrorBoundary>

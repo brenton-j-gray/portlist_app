@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiGetProfile, apiLogin, apiRegister, clearToken as clearStoredToken, getToken as getStoredToken, saveToken } from '../lib/api';
 import { syncTripsBackground } from '../lib/sync';
@@ -7,10 +8,12 @@ type AuthContextType = {
   loading: boolean;
   userEmail: string | null;
   userName: string | null;
+  userAvatar: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username?: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  setUserAvatar: (uri: string | null) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,12 +23,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [userAvatar, setUserAvatarState] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const t = await getStoredToken();
       setToken(t);
       setLoading(false);
+      // hydrate avatar
+      try {
+        const avatar = await AsyncStorage.getItem('cjp_avatar_uri');
+        setUserAvatarState(avatar || null);
+      } catch { /* noop */ }
     if (t) {
         // On app start with existing session, sync in background
         syncTripsBackground();
@@ -33,8 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const res = await apiGetProfile();
           const p = (res as any)?.profile;
-      const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
-      setUserName(name);
+          const full = (p?.fullName?.trim?.() || '') as string;
+          const first = full ? (full.split(/\s+/)[0] || '') : '';
+          const name = (first || p?.username?.trim?.() || null) as string | null;
+          setUserName(name);
         } catch {
           // ignore network/auth errors
         }
@@ -47,13 +58,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     loading,
     userEmail,
     userName,
+    userAvatar,
     refreshProfile: async () => {
       if (!token) return;
       try {
-        const pr = await apiGetProfile();
-        const p = (pr as any)?.profile;
-        const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
-        setUserName(name);
+  const pr = await apiGetProfile();
+  const p = (pr as any)?.profile;
+  const full = (p?.fullName?.trim?.() || '') as string;
+  const first = full ? (full.split(/\s+/)[0] || '') : '';
+  const name = (first || p?.username?.trim?.() || null) as string | null;
+  setUserName(name);
+      } catch { /* noop */ }
+    },
+    setUserAvatar: async (uri: string | null) => {
+      setUserAvatarState(uri);
+      try {
+        if (uri) await AsyncStorage.setItem('cjp_avatar_uri', uri);
+        else await AsyncStorage.removeItem('cjp_avatar_uri');
       } catch { /* noop */ }
     },
     login: async (email, password) => {
@@ -66,7 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const pr = await apiGetProfile();
           const p = (pr as any)?.profile;
-          const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+          const full = (p?.fullName?.trim?.() || '') as string;
+          const first = full ? (full.split(/\s+/)[0] || '') : '';
+          const name = (first || p?.username?.trim?.() || null) as string | null;
           setUserName(name);
         } catch { /* noop */ }
   syncTripsBackground();
@@ -84,7 +107,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const pr = await apiGetProfile();
           const p = (pr as any)?.profile;
-          const name = (p?.fullName?.trim?.() || p?.username?.trim?.() || null) as string | null;
+          const full = (p?.fullName?.trim?.() || '') as string;
+          const first = full ? (full.split(/\s+/)[0] || '') : '';
+          const name = (first || p?.username?.trim?.() || null) as string | null;
           setUserName(name);
         } catch { /* noop */ }
   syncTripsBackground();
@@ -97,8 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setToken(null);
       setUserEmail(null);
       setUserName(null);
+    setUserAvatarState(null);
     },
-  }), [token, loading, userEmail, userName]);
+  }), [token, loading, userEmail, userName, userAvatar]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

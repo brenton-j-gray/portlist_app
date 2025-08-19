@@ -1,19 +1,34 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../../../components/ThemeContext';
 import { deleteTrip, getTripById, upsertTrip } from '../../../lib/storage';
 import { Trip } from '../../../types';
-function formatDate(dateStr: string) {
-  if (!dateStr) return '';
+function parseLocal(dateStr: string | undefined): Date | null {
+  if (!dateStr) return null;
+  const ymd = String(dateStr).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  }
   const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
+  return isNaN(d.getTime()) ? null : d;
+}
+function formatDate(dateStr: string) {
+  const d = parseLocal(dateStr);
+  if (!d) return dateStr || '';
   return d.toLocaleDateString(undefined, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
+}
+function toISODate(d: Date) {
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 export default function EditTripScreen() {
@@ -28,6 +43,23 @@ export default function EditTripScreen() {
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [completed, setCompleted] = useState(false);
+  const [ports, setPorts] = useState<string[]>([]);
+  const [newPort, setNewPort] = useState('');
+  const [portSuggestions, setPortSuggestions] = useState<string[]>([]);
+  const [portLoading, setPortLoading] = useState(false);
+  const newPortInputRef = useRef<TextInput | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [isNewPortFocused, setIsNewPortFocused] = useState(false);
+  const [portsRowY, setPortsRowY] = useState(0);
+
+  const scrollPortsToTop = useCallback(() => {
+    if (scrollRef.current) {
+      const y = Math.max(0, portsRowY - 16); // account for content padding
+      scrollRef.current.scrollTo({ y, animated: true });
+    }
+  }, [portsRowY]);
 
   useEffect(() => {
     (async () => {
@@ -37,11 +69,65 @@ export default function EditTripScreen() {
         setTrip(t);
         setTitle(t.title);
         setShip(t.ship || '');
-        setStartDate(t.startDate || '');
-        setEndDate(t.endDate || '');
+  setStartDate(t.startDate || '');
+  setEndDate(t.endDate || '');
+  setCompleted(!!t.completed);
+  setPorts([...(t.ports || [])]);
       }
     })();
   }, [id]);
+
+  // Debounced location lookup for Ports input (Nominatim)
+  useEffect(() => {
+    let cancelled = false;
+    const q = newPort.trim();
+    if (q.length < 2) {
+      setPortSuggestions([]);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        setPortLoading(true);
+        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=5`;
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'cruise-journal-pro/1.0',
+            'Accept-Language': 'en',
+          },
+        });
+        const data = await res.json();
+        if (cancelled) return;
+        const names: string[] = Array.isArray(data)
+          ? data.map((it: any) => it?.display_name).filter(Boolean)
+          : [];
+        const unique = Array.from(new Set(names));
+        setPortSuggestions(unique as string[]);
+  } catch {
+    if (!cancelled) setPortSuggestions([]);
+      } finally {
+        if (!cancelled) setPortLoading(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(handle); };
+  }, [newPort]);
+
+  const hasQuery = (s: string) => s.trim().length >= 2;
+
+  // Track keyboard height for dynamic bottom padding (to keep suggestions visible)
+  useEffect(() => {
+    const onShow = (e: any) => setKeyboardHeight(e?.endCoordinates?.height ?? 0);
+    const onHide = () => setKeyboardHeight(0);
+    const showSub = Keyboard.addListener('keyboardDidShow', onShow);
+    const hideSub = Keyboard.addListener('keyboardDidHide', onHide);
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
+
+  // When suggestions or keyboard changes while input is focused, keep Ports at top
+  useEffect(() => {
+    if (isNewPortFocused) {
+      requestAnimationFrame(scrollPortsToTop);
+    }
+  }, [isNewPortFocused, portSuggestions.length, keyboardHeight, scrollPortsToTop]);
 
   async function onSave() {
     if (!trip) return;
@@ -49,7 +135,17 @@ export default function EditTripScreen() {
       Alert.alert('Title required');
       return;
     }
-    const updated: Trip = { ...trip, title: title.trim(), ship: ship.trim() || undefined, startDate: startDate || undefined, endDate: endDate || undefined };
+    // Validate end >= start when both provided
+    if (startDate && endDate) {
+      const s = (parseLocal(startDate) as Date).getTime();
+      const e = (parseLocal(endDate) as Date).getTime();
+      if (e < s) {
+        Alert.alert('Invalid dates', 'End date cannot be before start date.');
+        return;
+      }
+    }
+  const cleanPorts = ports.map(p => p.trim()).filter(Boolean);
+  const updated: Trip = { ...trip, title: title.trim(), ship: ship.trim() || undefined, startDate: startDate || undefined, endDate: endDate || undefined, completed, ports: cleanPorts };
     await upsertTrip(updated);
     router.replace(`/trips/${trip.id}`);
   }
@@ -91,8 +187,33 @@ export default function EditTripScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.select({ ios: 'padding', android: 'height' }) as any}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+    >
+    <ScrollView
+      ref={scrollRef as any}
+      style={{ flex: 1 }}
+      contentContainerStyle={{
+        padding: 16,
+        paddingBottom:
+          // Base padding
+          40 + (
+            // When suggestions are visible, add space so the list clears the keyboard
+            portSuggestions.length > 0
+              ? (Platform.OS === 'ios' ? 120 : Math.max(120, keyboardHeight + 20))
+              : 0
+          ),
+      }}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={{ backgroundColor: themeColors.background }}>
       <Text style={styles.title}>Edit Trip</Text>
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+    <Text style={styles.label}>Mark as Completed</Text>
+    <Switch value={completed} onValueChange={setCompleted} />
+  </View>
   <Text style={styles.label}>Trip Title</Text>
   <TextInput style={styles.input} placeholder="Trip title" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
   <Text style={styles.label}>Ship (optional)</Text>
@@ -104,12 +225,12 @@ export default function EditTripScreen() {
         </Pressable>
         {showStartPicker && (
           <DateTimePicker
-            value={startDate ? new Date(startDate) : new Date()}
+            value={startDate ? (parseLocal(startDate) as Date) : new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'inline' : 'default'}
             onChange={(event, date) => {
               setShowStartPicker(Platform.OS === 'ios');
-              if (date) setStartDate(date.toISOString().slice(0, 10));
+              if (date) setStartDate(toISODate(date));
             }}
           />
         )}
@@ -121,24 +242,112 @@ export default function EditTripScreen() {
         </Pressable>
         {showEndPicker && (
           <DateTimePicker
-            value={endDate ? new Date(endDate) : new Date()}
+            value={endDate ? (parseLocal(endDate) as Date) : new Date()}
             mode="date"
             display={Platform.OS === 'ios' ? 'inline' : 'default'}
             onChange={(event, date) => {
               setShowEndPicker(Platform.OS === 'ios');
-              if (date) setEndDate(date.toISOString().slice(0, 10));
+              if (date) setEndDate(toISODate(date));
             }}
           />
         )}
       </>
-      <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }]} disabled={!title.trim()}>
+  {/* Ports editor */}
+  <Text style={styles.label}>Ports</Text>
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+    {/* Capture layout to know where to pin on focus */}
+  </View>
+  <View onLayout={(e) => setPortsRowY(e.nativeEvent.layout.y)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+    <TextInput
+      ref={newPortInputRef as any}
+      style={[styles.input, { flex: 1, marginBottom: 0 }]}
+      placeholder="Add a port (e.g., Juneau, AK)"
+      placeholderTextColor={themeColors.textSecondary}
+      value={newPort}
+      onChangeText={setNewPort}
+      accessibilityLabel="New port"
+      returnKeyType="done"
+      onFocus={() => { setIsNewPortFocused(true); requestAnimationFrame(scrollPortsToTop); }}
+  onBlur={() => setIsNewPortFocused(false)}
+      onSubmitEditing={() => {
+        if (newPort.trim()) {
+          setPorts(prev => [...prev, newPort.trim()]);
+          setNewPort('');
+          setPortSuggestions([]);
+        }
+      }}
+    />
+    <Pressable
+      onPress={() => { if (newPort.trim()) { setPorts(prev => [...prev, newPort.trim()]); setNewPort(''); } }}
+      style={[styles.btn, { paddingVertical: 10, paddingHorizontal: 14 }]}
+      accessibilityRole="button"
+    >
+      <Text style={styles.btnText}>Add</Text>
+    </Pressable>
+  </View>
+  {/* Suggestions list for Ports */}
+  {portLoading && hasQuery(newPort) ? (
+    <Text style={{ color: themeColors.textSecondary, marginBottom: 6 }}>Searching…</Text>
+  ) : null}
+  {portSuggestions.length > 0 ? (
+    <View style={{
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: themeColors.menuBorder,
+      backgroundColor: themeColors.card,
+      borderRadius: 8,
+      marginBottom: 10,
+      overflow: 'hidden',
+    }}>
+      {portSuggestions.map((s, idx) => (
+        <Pressable
+          key={idx}
+          onPress={() => {
+            setNewPort(s);
+            // Keep it editable; focus input so user can immediately Add or adjust
+            requestAnimationFrame(() => newPortInputRef.current?.focus());
+          }}
+          style={{
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderBottomWidth: idx === portSuggestions.length - 1 ? 0 : StyleSheet.hairlineWidth,
+            borderBottomColor: themeColors.menuBorder,
+            backgroundColor: themeColors.card,
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`Use ${s}`}
+        >
+          <Text numberOfLines={2} style={{ color: themeColors.text }}>{s}</Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null}
+  {ports.length > 0 ? (
+    <View style={{ marginBottom: 10 }}>
+      {ports.map((p, idx) => (
+        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <TextInput
+            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            value={p}
+            onChangeText={(txt) => setPorts(prev => prev.map((v, i) => i === idx ? txt : v))}
+          />
+          <Pressable onPress={() => setPorts(prev => prev.filter((_, i) => i !== idx))} style={[styles.delBtn, { paddingVertical: 8, paddingHorizontal: 10 }]} accessibilityLabel={`Remove port ${p}`}>
+            <Text style={styles.delBtnText}>Remove</Text>
+          </Pressable>
+        </View>
+      ))}
+    </View>
+  ) : null}
+      <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }, { marginTop: 8 }]} disabled={!title.trim()}>
         <Text style={styles.btnText}>Save Changes</Text>
       </Pressable>
       <Pressable onPress={onDelete} style={styles.delBtn} accessibilityLabel="Delete Trip">
         <Text style={styles.delBtnText}>Delete Trip</Text>
       </Pressable>
 
-      <Modal
+  {/* Spacer so last inputs are not covered by submit/delete buttons */}
+  <View style={{ height: 24 }} />
+
+  <Modal
         visible={showDeleteModal}
         transparent
         animationType="fade"
@@ -176,7 +385,9 @@ export default function EditTripScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

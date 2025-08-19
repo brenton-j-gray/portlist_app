@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
+// forms moved to a dedicated Security screen
 import { pushTrips, syncTripsBackground } from '../../lib/sync';
 
 export default function SettingsScreen() {
@@ -38,6 +39,7 @@ export default function SettingsScreen() {
     ghostText: { color: themeColors.text, fontWeight: '700' },
     dangerBtn: { backgroundColor: themeColors.danger, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
     dangerText: { color: 'white', fontWeight: '700' },
+  // input styles no longer needed here
   }), [themeColors]);
 
   // hydrate backup settings
@@ -148,6 +150,10 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} style={styles.ghostBtn}>
             <Text style={styles.ghostText}>Profile</Text>
+          </TouchableOpacity>
+          <View style={{ height: 8 }} />
+          <TouchableOpacity onPress={() => router.push('/(tabs)/security' as any)} style={styles.ghostBtn}>
+            <Text style={styles.ghostText}>Security</Text>
           </TouchableOpacity>
           <View style={{ height: 8 }} />
           <TouchableOpacity onPress={logout} style={styles.dangerBtn}>

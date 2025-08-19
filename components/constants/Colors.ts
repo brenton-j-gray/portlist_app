@@ -1,21 +1,40 @@
 // Centralized color constants for Cruise Journal Pro
+// Brand: Playful ocean hues with refined accents
+// Primary: Deep Sea Blue #1E4D6B
+// Secondary: Aqua Mist #7FC8F8
+// Accent: Coral Glow #F88379
+// Highlight: Golden Sand #E5C07B
+// Neutral (light background): Pearl White #FAFAFA
 export const Colors = {
-  primary: '#1e90ff',
-  primaryDark: '#6366f1',
-  accent: '#64748b',
-  danger: '#dc2626',
-  background: '#f1f5f9',
-  card: '#fff',
-  cardAccentGradient: ['#6366f1', '#1e90ff'],
-  cardAccentGradientVertical: ['#6366f1', '#1e90ff'],
+  // Brand core
+  primary: '#1E4D6B', // Deep Sea Blue
+  primaryDark: '#163A52', // darker shade of Deep Sea Blue for contrast accents
+  secondary: '#7FC8F8', // Aqua Mist
+  accent: '#F88379', // Coral Glow
+  highlight: '#E5C07B', // Golden Sand
+
+  // Surfaces
+  background: '#FAFAFA', // Pearl White
+  card: '#FFFFFF',
+
+  // Gradients (use secondary → primary for a fresh ocean blend)
+  cardAccentGradient: ['#7FC8F8', '#1E4D6B'],
+  cardAccentGradientVertical: ['#7FC8F8', '#1E4D6B'],
+
+  // Text & UI
   text: '#22223b',
   textSecondary: '#475569',
-  badgeText: '#fff',
-  actionBtnBg: 'rgba(99,102,241,0.08)',
-  menuBg: '#fff',
+  badgeText: '#FFFFFF',
+  actionBtnBg: 'rgba(30,77,107,0.08)', // primary with light alpha
+  menuBg: '#FFFFFF',
   menuBorder: '#e5e7eb',
   menuText: '#22223b',
   menuDanger: '#dc2626',
-  addBtnText: '#fff',
-  addBtnBg: '#1e90ff',
+
+  // Buttons
+  addBtnText: '#FFFFFF',
+  addBtnBg: '#1E4D6B',
+
+  // Alerts
+  danger: '#dc2626',
 };

@@ -16,9 +16,9 @@ export default function TripsStackLayout() {
 			<Stack.Screen name="new" options={{ title: 'New Trip' }} />
 			<Stack.Screen name="[id]/index" options={{ title: 'Trip Details' }} />
 			<Stack.Screen name="[id]/edit" options={{ title: 'Edit Trip' }} />
-			<Stack.Screen name="[id]/log-new" options={{ title: 'New Log' }} />
-			<Stack.Screen name="[id]/log/[logId]/index" options={{ title: 'View Log' }} />
-			<Stack.Screen name="[id]/log/[logId]/edit" options={{ title: 'Edit Log' }} />
+			<Stack.Screen name="[id]/note-new" options={{ title: 'New Note' }} />
+			<Stack.Screen name="[id]/note/[noteId]/index" options={{ title: 'View Note' }} />
+			<Stack.Screen name="[id]/note/[noteId]/edit" options={{ title: 'Edit Note' }} />
 		</Stack>
 	);
 }
