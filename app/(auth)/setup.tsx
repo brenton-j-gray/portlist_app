@@ -13,13 +13,13 @@ export default function SetupScreen() {
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: themeColors.background, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    card: { width: '100%', maxWidth: 460, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, borderRadius: 12, padding: 16 },
+  card: { width: '100%', maxWidth: 460, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, borderRadius: 12, padding: 16 },
     title: { color: themeColors.text, fontSize: 22, fontWeight: '800', marginBottom: 12 },
     input: { backgroundColor: themeColors.card, color: themeColors.text, borderColor: themeColors.menuBorder, borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10 },
     btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: 'white', fontWeight: '700' },
-    secondaryBtn: { padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
-    secondaryText: { color: themeColors.text, fontWeight: '700' },
+  secondaryBtn: { padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
+  secondaryText: { color: themeColors.primaryDark, fontWeight: '700' },
   }), [themeColors]);
 
   async function onSave() {

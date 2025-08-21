@@ -47,6 +47,8 @@ export default function TripDetail() {
   const [trip, setTrip] = useState<Trip | undefined>(undefined);
   const [showActions, setShowActions] = useState(false);
   const [fabMenuModalVisible, setFabMenuModalVisible] = useState(false);
+  const [updatingCompleted, setUpdatingCompleted] = useState(false);
+  const [showPortsModal, setShowPortsModal] = useState(false);
   const menuOpacity = useRef(new Animated.Value(0)).current;
   const menuTranslate = useRef(new Animated.Value(8)).current;
   const FAB_SIZE = 56;
@@ -59,6 +61,15 @@ export default function TripDetail() {
   }, [id]);
 
   useEffect(() => { refresh(); }, [id, refresh]);
+
+  const toggleCompleted = async () => {
+    if (!trip) return;
+    setUpdatingCompleted(true);
+    const updated = { ...trip, completed: !trip.completed };
+    await import('../../../lib/storage').then(m => m.upsertTrip(updated));
+    setTrip(updated);
+    setUpdatingCompleted(false);
+  };
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 0, backgroundColor: themeColors.background },
@@ -109,6 +120,8 @@ export default function TripDetail() {
       marginTop: -24,
       marginBottom: 18,
       padding: 18,
+  borderWidth: 1,
+  borderColor: themeColors.primary,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.10,
@@ -124,9 +137,9 @@ export default function TripDetail() {
     summaryText: { fontSize: 16, color: themeColors.text, fontWeight: '500' },
   headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 },
   btn: { backgroundColor: themeColors.primary, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2 },
-  btnAlt: { backgroundColor: themeColors.actionBtnBg, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2, borderWidth: 1, borderColor: themeColors.primaryDark + '29' },
+  btnAlt: { backgroundColor: themeColors.primary + '12', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2, borderWidth: 1, borderColor: themeColors.primary },
   btnText: { color: themeColors.addBtnText, fontWeight: '700', fontSize: 16 },
-  btnTextAlt: { color: themeColors.text, fontWeight: '700', fontSize: 16 },
+  btnTextAlt: { color: themeColors.primaryDark, fontWeight: '700', fontSize: 16 },
     card: { padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10 },
     cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: themeColors.text },
   listContent: { paddingTop: 12, paddingBottom: 120, paddingHorizontal: 18 },
@@ -144,8 +157,20 @@ export default function TripDetail() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientHeader}
-  >
+      >
         <Text style={styles.headerTitle}>{trip.title}</Text>
+        <Pressable
+          style={[styles.headerIconBtn, { right: 16, top: 16, backgroundColor: trip.completed ? themeColors.primary : 'rgba(255,255,255,0.15)' }]}
+          onPress={toggleCompleted}
+          disabled={updatingCompleted}
+          accessibilityLabel={trip.completed ? 'Mark as not completed' : 'Mark as completed'}
+        >
+          <Ionicons
+            name={trip.completed ? 'checkmark-circle' : 'ellipse-outline'}
+            size={24}
+            color={trip.completed ? themeColors.badgeText : '#fff'}
+          />
+        </Pressable>
       </LinearGradient>
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
@@ -169,10 +194,14 @@ export default function TripDetail() {
           </View>
         )}
         {!!trip.ports?.length && (
-          <View style={styles.summaryRow}>
+          <Pressable
+            style={styles.summaryRow}
+            onPress={() => setShowPortsModal(true)}
+            accessibilityLabel="View ports"
+          >
             <Ionicons name="location-outline" size={20} color={themeColors.accent} style={styles.summaryIcon} />
-            <Text style={styles.summaryText}>{trip.ports.length} port{trip.ports.length > 1 ? 's' : ''}</Text>
-          </View>
+            <Text style={[styles.summaryText, { textDecorationLine: 'underline' }]}>{trip.ports.length} port{trip.ports.length > 1 ? 's' : ''}</Text>
+          </Pressable>
         )}
         <View style={styles.summaryRow}>
           <Ionicons name="document-text-outline" size={20} color={themeColors.highlight} style={styles.summaryIcon} />
@@ -292,6 +321,23 @@ export default function TripDetail() {
                 </View>
               </Animated.View>
             </Modal>
+      <Modal
+        visible={showPortsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPortsModal(false)}
+      >
+        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowPortsModal(false)} />
+        <View style={{ position: 'absolute', left: 0, right: 0, top: '30%', marginHorizontal: 24, backgroundColor: themeColors.card, borderRadius: 16, padding: 20, alignSelf: 'center', elevation: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: themeColors.text }}>Ports</Text>
+          {trip.ports.map((port, idx) => (
+            <Text key={idx} style={{ fontSize: 16, color: themeColors.text, marginBottom: 6 }}>{port}</Text>
+          ))}
+          <Pressable onPress={() => setShowPortsModal(false)} style={{ marginTop: 18, alignSelf: 'flex-end', padding: 8 }}>
+            <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Close</Text>
+          </Pressable>
+        </View>
+      </Modal>
           </>
         );
       })()}
@@ -304,7 +350,7 @@ function DayItem({ item, themeColors, colorScheme, tripId }: { item: Note, theme
   return (
     <Pressable
   onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/note/[noteId]' as any, params: { id: tripId, noteId: item.id } } as any)}
-      style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10 }}
+  style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: themeColors.primary }}
       accessibilityLabel={`Edit note ${item.date}`}
     >
       {thumbUri ? (
@@ -317,7 +363,7 @@ function DayItem({ item, themeColors, colorScheme, tripId }: { item: Note, theme
             borderRadius: 8,
             backgroundColor: themeColors.card,
             borderWidth: 1,
-            borderColor: themeColors.menuBorder,
+            borderColor: themeColors.primary,
             alignItems: 'center',
             justifyContent: 'center',
           }}
@@ -333,12 +379,12 @@ function DayItem({ item, themeColors, colorScheme, tripId }: { item: Note, theme
         {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.notes}</Text>}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
           {!!item.weather && (
-            <Pill variant="accent" iconName={(item.weather + '-outline') as any}>
+            <Pill variant="neutral" iconName={(item.weather + '-outline') as any}>
               {item.weather}
             </Pill>
           )}
           {!!(item.locationName || item.location) && (
-            <Pill variant="highlight" iconName="location-outline">
+            <Pill variant="success" iconName="location-outline">
               {(() => {
                 const label = item.locationName || '';
                 if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;

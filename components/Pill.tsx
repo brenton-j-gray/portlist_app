@@ -3,7 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, TextStyle, View, ViewStyle } from 'react-native';
 import { useTheme } from './ThemeContext';
 
-type PillVariant = 'accent' | 'highlight' | 'primary';
+type PillVariant = 'accent' | 'highlight' | 'primary' | 'neutral' | 'success';
 type PillSize = 'sm' | 'md';
 
 interface PillProps {
@@ -18,8 +18,16 @@ interface PillProps {
 
 export function Pill({ variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle }: PillProps) {
   const { themeColors, colorScheme } = useTheme();
-  const palette = themeColors as unknown as Record<'accent' | 'highlight' | 'primary', string>;
-  const token: string = palette[variant];
+  // Map variant to a token color from theme
+  const token: string = (() => {
+    switch (variant) {
+      case 'accent': return themeColors.accent;
+      case 'highlight': return themeColors.highlight;
+      case 'primary': return themeColors.primary;
+  case 'success': return (themeColors as any).success ?? themeColors.primary;
+  case 'neutral': default: return (themeColors as any).neutral ?? themeColors.textSecondary; // balanced neutral gray
+    }
+  })();
   const paddingH = size === 'md' ? 10 : 8;
   const paddingV = size === 'md' ? 6 : 4;
   const fontSize = size === 'md' ? 14 : 13;
@@ -46,7 +54,9 @@ export function Pill({ variant, iconName, children, size = 'sm', numberOfLines =
         ellipsizeMode="tail"
         style={[
           {
-            color: colorScheme === 'light' ? themeColors.text : token,
+            color: colorScheme === 'light'
+              ? (variant === 'neutral' ? themeColors.text : themeColors.text)
+              : (variant === 'neutral' ? themeColors.text : token),
             fontWeight: '700',
             fontSize,
             flexShrink: 1,

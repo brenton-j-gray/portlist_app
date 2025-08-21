@@ -7,6 +7,9 @@ export const DarkColors = {
   secondary: '#1E4D6B', // Deep Sea Blue as secondary accents on dark
   accent: '#F88379', // Coral Glow
   highlight: '#E5C07B', // Golden Sand
+  success: '#22C55E',
+  // Neutral mid-gray tuned for dark
+  neutral: '#94A3B8',
 
   // Surfaces
   background: '#0E1113',

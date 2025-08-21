@@ -1,8 +1,11 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { useTheme } from '../../../components/ThemeContext';
+import { loadPortsCache, PortEntry, resolvePortByName, searchPorts, searchPortsOnline, upsertCachedPort } from '../../../lib/ports';
 import { deleteTrip, getTripById, upsertTrip } from '../../../lib/storage';
 import { Trip } from '../../../types';
 function parseLocal(dateStr: string | undefined): Date | null {
@@ -46,13 +49,14 @@ export default function EditTripScreen() {
   const [completed, setCompleted] = useState(false);
   const [ports, setPorts] = useState<string[]>([]);
   const [newPort, setNewPort] = useState('');
-  const [portSuggestions, setPortSuggestions] = useState<string[]>([]);
-  const [portLoading, setPortLoading] = useState(false);
+  const [portsCache, setPortsCache] = useState<PortEntry[]>([]);
+  const [portSuggestions, setPortSuggestions] = useState<PortEntry[]>([]);
   const newPortInputRef = useRef<TextInput | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
   const [isNewPortFocused, setIsNewPortFocused] = useState(false);
   const [portsRowY, setPortsRowY] = useState(0);
+  type PortItem = { key: string; label: string };
 
   const scrollPortsToTop = useCallback(() => {
     if (scrollRef.current) {
@@ -74,44 +78,48 @@ export default function EditTripScreen() {
   setCompleted(!!t.completed);
   setPorts([...(t.ports || [])]);
       }
+      // Load cached ports for autocomplete
+      try {
+        const cache = await loadPortsCache();
+        setPortsCache(cache);
+      } catch {}
     })();
   }, [id]);
 
-  // Debounced location lookup for Ports input (Nominatim)
+  // Debounced fuzzy suggestions from local curated+cache + online fallback
   useEffect(() => {
-    let cancelled = false;
     const q = newPort.trim();
     if (q.length < 2) {
       setPortSuggestions([]);
       return;
     }
+    let cancelled = false;
     const handle = setTimeout(async () => {
       try {
-        setPortLoading(true);
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=5`;
-        const res = await fetch(url, {
-          headers: {
-            'User-Agent': 'cruise-journal-pro/1.0',
-            'Accept-Language': 'en',
-          },
-        });
-        const data = await res.json();
-        if (cancelled) return;
-        const names: string[] = Array.isArray(data)
-          ? data.map((it: any) => it?.display_name).filter(Boolean)
-          : [];
-        const unique = Array.from(new Set(names));
-        setPortSuggestions(unique as string[]);
-  } catch {
-    if (!cancelled) setPortSuggestions([]);
-      } finally {
-        if (!cancelled) setPortLoading(false);
+  const localHits = searchPorts(q, portsCache, 6);
+  // If local hits are few, fetch online fallback
+  let merged = localHits.slice();
+        if (localHits.length < 6) {
+          const online = await searchPortsOnline(q, 5);
+          // Merge by name+country, prefer local first
+          const seen = new Set(localHits.map(p => `${p.name.toLowerCase()}|${(p.country||'').toLowerCase()}`));
+          for (const o of online) {
+            const key = `${o.name.toLowerCase()}|${(o.country||'').toLowerCase()}`;
+            if (!seen.has(key)) { merged.push(o); seen.add(key); }
+          }
+        }
+  // Re-rank merged: prefer port/harbor-like names
+  const isPorty = (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier)\b/i.test(s);
+  merged.sort((a, b) => (Number(isPorty(b.name)) - Number(isPorty(a.name))));
+        if (!cancelled) setPortSuggestions(merged.slice(0, 10));
+      } catch {
+        if (!cancelled) setPortSuggestions([]);
       }
-    }, 300);
+    }, 200);
     return () => { cancelled = true; clearTimeout(handle); };
-  }, [newPort]);
+  }, [newPort, portsCache]);
 
-  const hasQuery = (s: string) => s.trim().length >= 2;
+  // helper removed: hasQuery
 
   // Track keyboard height for dynamic bottom padding (to keep suggestions visible)
   useEffect(() => {
@@ -144,9 +152,23 @@ export default function EditTripScreen() {
         return;
       }
     }
-  const cleanPorts = ports.map(p => p.trim()).filter(Boolean);
-  const updated: Trip = { ...trip, title: title.trim(), ship: ship.trim() || undefined, startDate: startDate || undefined, endDate: endDate || undefined, completed, ports: cleanPorts };
+    // Normalize and deduplicate ports on save to formatted "Name, ST, CC" when available
+    const normalized = ports
+      .map(p => p.trim())
+      .filter(Boolean)
+      .map(p => {
+        const r = resolvePortByName(p, portsCache);
+        return r ? `${r.name}${r.regionCode ? `, ${r.regionCode}` : ''}${r.country ? `, ${r.country}` : ''}` : p;
+      });
+    const dedup: string[] = [];
+    for (const p of normalized) {
+      const key = p.trim().toLowerCase();
+      if (!dedup.some(x => x.trim().toLowerCase() === key)) dedup.push(p);
+    }
+    const updated: Trip = { ...trip, title: title.trim(), ship: ship.trim() || undefined, startDate: startDate || undefined, endDate: endDate || undefined, completed, ports: dedup };
     await upsertTrip(updated);
+    // Refresh cache so formatting reflects any newly cached ports from selections
+    try { const cache = await loadPortsCache(); setPortsCache(cache); } catch {}
     router.replace(`/trips/${trip.id}`);
   }
 
@@ -171,7 +193,7 @@ export default function EditTripScreen() {
   delBtn: { backgroundColor: themeColors.danger, padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 12 },
   delBtnText: { color: themeColors.badgeText, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 420, backgroundColor: themeColors.card, borderRadius: 14, padding: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: themeColors.menuBorder },
+  modalCard: { width: '100%', maxWidth: 420, backgroundColor: themeColors.card, borderRadius: 14, padding: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: themeColors.primary },
   modalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 6, color: themeColors.text },
   modalMessage: { fontSize: 14, color: themeColors.textSecondary, marginBottom: 14 },
   modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
@@ -210,10 +232,6 @@ export default function EditTripScreen() {
     >
       <View style={{ backgroundColor: themeColors.background }}>
       <Text style={styles.title}>Edit Trip</Text>
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-    <Text style={styles.label}>Mark as Completed</Text>
-    <Switch value={completed} onValueChange={setCompleted} />
-  </View>
   <Text style={styles.label}>Trip Title</Text>
   <TextInput style={styles.input} placeholder="Trip title" placeholderTextColor={themeColors.textSecondary} value={title} onChangeText={setTitle} />
   <Text style={styles.label}>Ship (optional)</Text>
@@ -269,16 +287,48 @@ export default function EditTripScreen() {
       returnKeyType="done"
       onFocus={() => { setIsNewPortFocused(true); requestAnimationFrame(scrollPortsToTop); }}
   onBlur={() => setIsNewPortFocused(false)}
-      onSubmitEditing={() => {
-        if (newPort.trim()) {
-          setPorts(prev => [...prev, newPort.trim()]);
+      onSubmitEditing={async () => {
+        const q = newPort.trim();
+        if (q) {
+          const r = resolvePortByName(q, portsCache);
+          const formatted = r ? `${r.name}${r.regionCode ? `, ${r.regionCode}` : ''}${r.country ? `, ${r.country}` : ''}` : q;
+          setPorts(prev => {
+            const exists = prev.some(v => v.trim().toLowerCase() === formatted.trim().toLowerCase());
+            return exists ? prev : [...prev, formatted];
+          });
+          if (r) {
+            try {
+              await upsertCachedPort({ name: r.name, country: r.country, regionCode: r.regionCode, lat: r.lat, lng: r.lng, aliases: r.aliases, source: 'cache' });
+              const cache = await loadPortsCache();
+              setPortsCache(cache);
+            } catch {}
+          }
           setNewPort('');
           setPortSuggestions([]);
         }
       }}
     />
     <Pressable
-      onPress={() => { if (newPort.trim()) { setPorts(prev => [...prev, newPort.trim()]); setNewPort(''); } }}
+      onPress={async () => {
+        const q = newPort.trim();
+        if (q) {
+          const r = resolvePortByName(q, portsCache);
+          const formatted = r ? `${r.name}${r.regionCode ? `, ${r.regionCode}` : ''}${r.country ? `, ${r.country}` : ''}` : q;
+          setPorts(prev => {
+            const exists = prev.some(v => v.trim().toLowerCase() === formatted.trim().toLowerCase());
+            return exists ? prev : [...prev, formatted];
+          });
+          if (r) {
+            try {
+              await upsertCachedPort({ name: r.name, country: r.country, regionCode: r.regionCode, lat: r.lat, lng: r.lng, aliases: r.aliases, source: 'cache' });
+              const cache = await loadPortsCache();
+              setPortsCache(cache);
+            } catch {}
+          }
+          setNewPort('');
+          setPortSuggestions([]);
+        }
+      }}
       style={[styles.btn, { paddingVertical: 10, paddingHorizontal: 14 }]}
       accessibilityRole="button"
     >
@@ -286,9 +336,6 @@ export default function EditTripScreen() {
     </Pressable>
   </View>
   {/* Suggestions list for Ports */}
-  {portLoading && hasQuery(newPort) ? (
-    <Text style={{ color: themeColors.textSecondary, marginBottom: 6 }}>Searching…</Text>
-  ) : null}
   {portSuggestions.length > 0 ? (
     <View style={{
       borderWidth: StyleSheet.hairlineWidth,
@@ -302,9 +349,19 @@ export default function EditTripScreen() {
         <Pressable
           key={idx}
           onPress={() => {
-            setNewPort(s);
-            // Keep it editable; focus input so user can immediately Add or adjust
-            requestAnimationFrame(() => newPortInputRef.current?.focus());
+            // Add selected suggestion formatted, save coords to cache, and clear input
+            const formatted = `${s.name}${s.regionCode ? `, ${s.regionCode}` : ''}${s.country ? `, ${s.country}` : ''}`;
+            setPorts(prev => {
+              const exists = prev.some(p => p.trim().toLowerCase() === formatted.trim().toLowerCase());
+              return exists ? prev : [...prev, formatted];
+            });
+            setNewPort('');
+            setPortSuggestions([]);
+            // Persist coordinates to local cache for map usage
+            upsertCachedPort({ name: s.name, country: s.country, regionCode: s.regionCode, lat: s.lat, lng: s.lng, aliases: s.aliases, source: 'cache' }).then(async () => {
+              // refresh local cache state so future searches include this entry as cached
+              try { const cache = await loadPortsCache(); setPortsCache(cache); } catch {}
+            }).catch(() => {});
           }}
           style={{
             paddingVertical: 10,
@@ -314,27 +371,56 @@ export default function EditTripScreen() {
             backgroundColor: themeColors.card,
           }}
           accessibilityRole="button"
-          accessibilityLabel={`Use ${s}`}
+          accessibilityLabel={`Use ${s.name}`}
         >
-          <Text numberOfLines={2} style={{ color: themeColors.text }}>{s}</Text>
+          <Text numberOfLines={2} style={{ color: themeColors.text }}>
+            {s.name}
+            {s.regionCode || s.country ? `, ` : ''}
+            {s.regionCode ? `${s.regionCode}` : ''}
+            {s.regionCode && s.country ? `, ` : ''}
+            {s.country ? `${s.country}` : ''}
+          </Text>
         </Pressable>
       ))}
     </View>
   ) : null}
   {ports.length > 0 ? (
     <View style={{ marginBottom: 10 }}>
-      {ports.map((p, idx) => (
-        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
-            value={p}
-            onChangeText={(txt) => setPorts(prev => prev.map((v, i) => i === idx ? txt : v))}
-          />
-          <Pressable onPress={() => setPorts(prev => prev.filter((_, i) => i !== idx))} style={[styles.delBtn, { paddingVertical: 8, paddingHorizontal: 10 }]} accessibilityLabel={`Remove port ${p}`}>
-            <Text style={styles.delBtnText}>Remove</Text>
-          </Pressable>
-        </View>
-      ))}
+      <DraggableFlatList<PortItem>
+        data={ports.map((p, i) => ({ key: `${i}-${p}`, label: p }))}
+        keyExtractor={(item: PortItem) => item.key}
+        onDragEnd={({ data }: { data: PortItem[] }) => setPorts(data.map((d: PortItem) => d.label))}
+        containerStyle={{}}
+        activationDistance={8}
+        scrollEnabled={false}
+        renderItem={({ item, drag, isActive, getIndex }: RenderItemParams<PortItem>) => {
+          const idx = getIndex?.() ?? 0;
+          return (
+            <ScaleDecorator activeScale={0.98}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                {/* Handle */}
+                <Pressable onLongPress={drag} delayLongPress={120} hitSlop={8} style={{ padding: 6 }} accessibilityLabel={`Reorder ${item.label}`}>
+                  <Ionicons name="reorder-three" size={22} color={themeColors.textSecondary} />
+                </Pressable>
+                {/* Index number */}
+                <Text style={{ width: 22, textAlign: 'right', color: themeColors.textSecondary }}>{idx + 1}.</Text>
+                {/* Editable input */}
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[styles.input, { marginBottom: 4 }]}
+                    value={item.label}
+                    onChangeText={(txt) => setPorts(prev => prev.map((v, i) => i === idx ? txt : v))}
+                  />
+                </View>
+                {/* Remove */}
+                <Pressable onPress={() => setPorts(prev => prev.filter((_, i) => i !== idx))} style={[styles.delBtn, { paddingVertical: 8, paddingHorizontal: 10 }]} accessibilityLabel={`Remove port ${item.label}`}>
+                  <Text style={styles.delBtnText}>Remove</Text>
+                </Pressable>
+              </View>
+            </ScaleDecorator>
+          );
+        }}
+      />
     </View>
   ) : null}
       <Pressable onPress={onSave} style={[styles.btn, !title.trim() && { opacity: 0.6 }, { marginTop: 8 }]} disabled={!title.trim()}>

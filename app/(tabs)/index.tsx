@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../components/AuthContext';
+import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { Pill } from '../../components/Pill';
 import { useTheme } from '../../components/ThemeContext';
 import { shortLocationLabel } from '../../lib/location';
@@ -13,6 +14,7 @@ import type { Note, Trip } from '../../types';
 
 export default function HomeScreen() {
   const { themeColors } = useTheme();
+  const { flags } = useFeatureFlags();
   const { userName } = useAuth();
   const [highlights, setHighlights] = useState<{ tripId: string; log: Note; tripTitle: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +29,7 @@ export default function HomeScreen() {
     title: {
       fontSize: 30,
       marginBottom: 8,
-      color: themeColors.text,
+      color: themeColors.accent,
       fontFamily: 'Pacifico' as any,
       letterSpacing: 0.2,
       textShadowColor: themeColors.card,
@@ -36,13 +38,13 @@ export default function HomeScreen() {
     },
     body: { fontSize: 16, color: themeColors.textSecondary },
     sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 16, marginBottom: 8, color: themeColors.text },
-  infoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, marginTop: 8 },
+  infoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, marginTop: 8 },
   infoText: { fontSize: 14, color: themeColors.text },
   infoPrimary: { fontSize: 15, fontWeight: '700', color: themeColors.text, marginBottom: 4 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   pillText: { fontSize: 13, fontWeight: '700' },
-  card: { flexDirection: 'row', padding: 10, borderRadius: 10, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, marginBottom: 10, alignItems: 'center' },
+  card: { flexDirection: 'row', padding: 10, borderRadius: 10, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, marginBottom: 10, alignItems: 'center' },
     thumb: { width: 56, height: 56, borderRadius: 6, backgroundColor: themeColors.menuBorder, marginRight: 10 },
   cardTextWrap: { flex: 1, minWidth: 0 },
   cardTitle: { fontSize: 16, fontWeight: '700', color: themeColors.text },
@@ -84,6 +86,13 @@ export default function HomeScreen() {
     (async () => {
       try {
         setLocLoading(true);
+        if (!flags.weather) {
+          // Weather disabled: still show date; skip location/permissions
+          const now = new Date();
+          setDateStr(formatWeekdayDDMonthYYYY(now));
+          setLocLoading(false);
+          return;
+        }
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') { setLocLoading(false); return; }
         const loc = await Location.getCurrentPositionAsync({});
@@ -114,7 +123,7 @@ export default function HomeScreen() {
         setLocLoading(false);
       }
     })();
-  }, []);
+  }, [flags.weather]);
 
   const hour = new Date().getHours();
   const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
@@ -132,6 +141,7 @@ export default function HomeScreen() {
         </View>
       ) : (
         <View style={styles.infoCard}>
+          {flags.weather && (
           <Ionicons
             name={(
               weatherKey === 'sunny' ? 'sunny-outline' :
@@ -143,13 +153,13 @@ export default function HomeScreen() {
             ) as any}
             size={18}
             color={themeColors.primaryDark}
-          />
+          />)}
           <View style={{ flex: 1 }}>
             <Text style={styles.infoPrimary}>{dateStr || formatWeekdayDDMonthYYYY(new Date())}</Text>
             <View style={styles.infoRow}>
-              {(weatherKey && weatherKey !== 'unknown') || tempF != null ? (
+              {flags.weather && ((weatherKey && weatherKey !== 'unknown') || tempF != null) ? (
                 <Pill
-                  variant="accent"
+                  variant="neutral"
                   iconName={(
                     weatherKey === 'sunny' ? 'sunny-outline' :
                     weatherKey === 'cloudy' || weatherKey === 'fog' ? 'cloud-outline' :
@@ -162,8 +172,8 @@ export default function HomeScreen() {
                   {keyToLabel(weatherKey)}{tempF != null ? ` • ${tempF}°F` : ''}
                 </Pill>
               ) : null}
-              {!!whereText && (
-                <Pill variant="highlight" iconName="location-outline">
+              {flags.weather && !!whereText && (
+                <Pill variant="success" iconName="location-outline">
                   {whereText}
                 </Pill>
               )}
@@ -197,12 +207,12 @@ export default function HomeScreen() {
               <Text style={styles.cardSub} numberOfLines={1} ellipsizeMode="tail">{formatWeekdayDDMonthYYYY(new Date(h.log.date))} • {h.tripTitle}</Text>
               <View style={styles.tagRow}>
                 {!!h.log.weather && (
-                  <Pill variant="accent" iconName={(h.log.weather + '-outline') as any}>
+                  <Pill variant="neutral" iconName={(h.log.weather + '-outline') as any}>
                     {h.log.weather}
                   </Pill>
                 )}
                 {!!(h.log.locationName || h.log.location) && (
-                  <Pill variant="highlight" iconName="location-outline">
+                  <Pill variant="success" iconName="location-outline">
                     {(() => {
                       const label = h.log.locationName || '';
                       // If we already stored short format like "City, CC", show as-is

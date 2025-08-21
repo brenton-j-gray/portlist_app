@@ -117,7 +117,6 @@ export default function TripsScreen() {
 	const [tab, setTab] = useState<'inprogress' | 'upcoming' | 'completed'>('upcoming');
 	const [query, setQuery] = useState('');
 	const [showSortMenu, setShowSortMenu] = useState(false);
-	const [showStatusMenu, setShowStatusMenu] = useState(false);
 	const [fabMenuModalVisible, setFabMenuModalVisible] = useState(false); // controls Modal mount for exit animation
 	const menuOpacity = useRef(new Animated.Value(0)).current;
 	const menuTranslate = useRef(new Animated.Value(8)).current;
@@ -185,31 +184,51 @@ export default function TripsScreen() {
 		}
 
 	const styles = useMemo(() => StyleSheet.create({
+			tabsBar: {
+				flexDirection: 'row',
+				alignItems: 'flex-end',
+				borderBottomWidth: 1,
+				borderBottomColor: themeColors.primary,
+				marginBottom: 10,
+			},
 			tabsRow: {
 				flexDirection: 'row',
-				alignItems: 'center',
-				gap: 8,
-				marginBottom: 10,
+				alignItems: 'flex-end',
+				gap: 6,
+				marginBottom: 0,
 			},
 			tabBtn: {
 				flex: 1,
-				paddingVertical: 8,
-				borderRadius: 10,
-				backgroundColor: themeColors.card,
+				paddingVertical: 10,
+				backgroundColor: themeColors.background,
 				borderWidth: 1,
 				borderColor: themeColors.menuBorder,
+				borderBottomColor: themeColors.primary,
+				borderTopLeftRadius: 10,
+				borderTopRightRadius: 10,
+				borderBottomLeftRadius: 0,
+				borderBottomRightRadius: 0,
+				borderBottomWidth: 1,
 				alignItems: 'center',
 				justifyContent: 'center',
+				marginHorizontal: 2,
 			},
 			tabBtnActive: {
-				backgroundColor: themeColors.primary + '14',
+				backgroundColor: themeColors.card,
 				borderColor: themeColors.primary,
+				borderBottomWidth: 0,
+				// Overlap the bottom strip so the active tab appears connected
+				marginBottom: -1,
+				zIndex: 3,
 			},
 			tabText: {
 				fontSize: 15,
 				fontWeight: '700',
 				color: themeColors.text,
 				letterSpacing: 0.2,
+			},
+			tabTextInactive: {
+				color: themeColors.textSecondary,
 			},
 			searchRow: {
 				flexDirection: 'row',
@@ -246,9 +265,9 @@ export default function TripsScreen() {
 				color: themeColors.primaryDark,
 				fontWeight: '700',
 			},
-		searchInput: { flex: 1, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-			secondaryBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
-			iconBtn: { padding: 10, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
+		searchInput: { flex: 1, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
+			secondaryBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
+			iconBtn: { padding: 10, borderRadius: 999, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
 		secondaryBtnText: { color: themeColors.text, fontWeight: '600' },
 		sortLabel: {
 			fontSize: 15,
@@ -315,10 +334,17 @@ export default function TripsScreen() {
 			marginBottom: 16,
 			borderRadius: 18,
 			backgroundColor: themeColors.card,
+				borderWidth: 1,
+				borderColor: themeColors.primary,
 			overflow: 'hidden',
 			position: 'relative',
 			minHeight: 90,
 		} as any,
+		cardTextShadow: {
+			textShadowColor: 'rgba(0,0,0,0.32)',
+			textShadowOffset: { width: 0, height: 2 },
+			textShadowRadius: 4,
+		},
 		cardBg: {
 			position: 'absolute',
 			left: 0,
@@ -326,6 +352,19 @@ export default function TripsScreen() {
 			right: 0,
 			bottom: 0,
 		} as any,
+		cardBgZoom: {
+			transform: [{ scale: 1.12 }], // Slight zoom to ensure full fill and crop
+		},
+		cardWhiteOverlay: {
+			position: 'absolute',
+			left: 0,
+			top: 0,
+			right: 0,
+			bottom: 0,
+			backgroundColor: 'rgba(255,255,255,0.10)', // very slight white overlay
+			zIndex: 1,
+			borderRadius: 18,
+		},
 		cardOverlay: {
 			position: 'absolute',
 			left: 0,
@@ -380,6 +419,7 @@ export default function TripsScreen() {
 		},
 		completedChip: {
 			marginLeft: 8,
+			marginRight: 8, // Add space between completed badge and notes badge
 			paddingHorizontal: 8,
 			paddingVertical: 4,
 			borderRadius: 999,
@@ -557,21 +597,35 @@ export default function TripsScreen() {
 					accessibilityLabel="Search trips"
 				/>
 			</View>
-			<View style={styles.sortRow}>
-				<View style={styles.sortControls}>
-					<Text style={styles.sortLabel}>Status</Text>
-					<TouchableOpacity
-						style={styles.sortMenuBtn}
-						onPress={() => setShowStatusMenu(true)}
-						accessibilityLabel={`Open status menu (current: ${tab === 'inprogress' ? 'In Progress' : tab === 'upcoming' ? 'Upcoming' : 'Completed'})`}
-					>
-						<Ionicons name="filter-outline" size={18} color={themeColors.primaryDark} />
-						<Text style={styles.sortMenuBtnText}>
-							{tab === 'inprogress' ? 'In Progress' : tab === 'upcoming' ? 'Upcoming' : 'Completed'}
-						</Text>
-					</TouchableOpacity>
+
+			{/* Browser-style status tabs under the search bar */}
+			<View style={styles.tabsBar}>
+				<View style={styles.tabsRow}>
+				<Pressable
+					style={[styles.tabBtn, tab === 'inprogress' && styles.tabBtnActive]}
+					onPress={() => setTab('inprogress')}
+					accessibilityRole="button"
+					accessibilityLabel="Show In Progress trips"
+				>
+					<Text style={[styles.tabText, tab !== 'inprogress' && styles.tabTextInactive]}>In Progress</Text>
+				</Pressable>
+				<Pressable
+					style={[styles.tabBtn, tab === 'upcoming' && styles.tabBtnActive]}
+					onPress={() => setTab('upcoming')}
+					accessibilityRole="button"
+					accessibilityLabel="Show Upcoming trips"
+				>
+					<Text style={[styles.tabText, tab !== 'upcoming' && styles.tabTextInactive]}>Upcoming</Text>
+				</Pressable>
+				<Pressable
+					style={[styles.tabBtn, tab === 'completed' && styles.tabBtnActive]}
+					onPress={() => setTab('completed')}
+					accessibilityRole="button"
+					accessibilityLabel="Show Completed trips"
+				>
+					<Text style={[styles.tabText, tab !== 'completed' && styles.tabTextInactive]}>Completed</Text>
+				</Pressable>
 				</View>
-				{/* Old Sort and Export removed; both live under the menu now */}
 			</View>
 
 			{/* Sort menu modal */}
@@ -607,38 +661,7 @@ export default function TripsScreen() {
 				</View>
 			</Modal>
 
-			{/* Status menu modal */}
-			<Modal visible={showStatusMenu} transparent animationType="fade" onRequestClose={() => setShowStatusMenu(false)}>
-				<Pressable style={styles.modalBackdrop} onPress={() => setShowStatusMenu(false)}>
-					{/* spacer to capture outside clicks */}
-				</Pressable>
-				<View style={styles.modalCenterWrap} pointerEvents="box-none">
-					<View style={styles.modalCard}>
-						<Text style={styles.modalTitle}>Show trips</Text>
-						<TouchableOpacity
-							style={[styles.modalOption, tab === 'inprogress' && styles.modalOptionActive]}
-							onPress={() => { setTab('inprogress'); setShowStatusMenu(false); }}
-							accessibilityLabel="Show In Progress trips"
-						>
-							<Text style={[styles.modalOptionText, tab === 'inprogress' && styles.modalOptionTextActive]}>In Progress</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={[styles.modalOption, tab === 'upcoming' && styles.modalOptionActive]}
-							onPress={() => { setTab('upcoming'); setShowStatusMenu(false); }}
-							accessibilityLabel="Show Upcoming trips"
-						>
-							<Text style={[styles.modalOptionText, tab === 'upcoming' && styles.modalOptionTextActive]}>Upcoming</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={[styles.modalOption, tab === 'completed' && styles.modalOptionActive]}
-							onPress={() => { setTab('completed'); setShowStatusMenu(false); }}
-							accessibilityLabel="Show Completed trips"
-						>
-							<Text style={[styles.modalOptionText, tab === 'completed' && styles.modalOptionTextActive]}>Completed</Text>
-						</TouchableOpacity>
-					</View>
-				</View>
-			</Modal>
+			{/* Status menu modal removed in favor of folder tabs */}
 
 			{filteredTrips.length === 0 ? (
 				<Text style={{ color: themeColors.textSecondary }}>
@@ -670,7 +693,15 @@ export default function TripsScreen() {
 									hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
 								>
 										{bgUri ? (
-											<ImageBackground source={{ uri: bgUri }} style={styles.cardBg} resizeMode="cover" />
+											<>
+												<ImageBackground
+													source={{ uri: bgUri }}
+													style={[styles.cardBg, styles.cardBgZoom]}
+													resizeMode="cover"
+													blurRadius={8}
+												/>
+												<View style={styles.cardWhiteOverlay} pointerEvents="none" />
+											</>
 										) : null}
 										{bgUri ? (
 											<LinearGradient
@@ -687,15 +718,25 @@ export default function TripsScreen() {
 											style={styles.cardAccent}
 										/>
 									<View style={styles.cardContent}>
-										{bgUri ? <View style={styles.cardContentBackdrop} /> : null}
+										{/* Removed cardContentBackdrop for cleaner look with blur/white overlay */}
 										<View style={styles.cardHeaderRow}>
-											<Text style={[styles.cardTitle, bgUri ? { color: '#fff' } : null]} numberOfLines={1}>{item.title}</Text>
+											<Text
+												style={[
+													styles.cardTitle,
+													bgUri ? styles.cardTextShadow : null,
+													bgUri ? { color: '#fff' } : null
+												]}
+												numberOfLines={1}
+											>
+												{item.title}
+											</Text>
 											{item.completed ? (
 												<View style={[styles.completedChip, bgUri ? { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: '#fff' } : null]}>
 													<Ionicons name="checkmark-done-outline" size={14} color={bgUri ? '#fff' : themeColors.primaryDark} />
 													<Text style={[styles.completedChipText, bgUri ? { color: '#fff' } : null]}>Completed</Text>
 												</View>
 											) : null}
+											<Text style={[styles.metaText, { marginRight: 4 }, bgUri ? styles.cardTextShadow : null, bgUri ? { color: '#fff' } : null]}>Notes</Text>
 											<LinearGradient
 												colors={themeColors.cardAccentGradient as any}
 												start={{ x: 0, y: 0 }}
@@ -705,14 +746,24 @@ export default function TripsScreen() {
 												<Text style={styles.badgeText}>{item.days.length}</Text>
 											</LinearGradient>
 										</View>
-										<Text style={[styles.metaText, bgUri ? { color: '#efefef' } : null]}>
+										<Text style={[
+											styles.metaText,
+											bgUri ? styles.cardTextShadow : null,
+											bgUri ? { color: '#efefef' } : null
+										]}>
 											{item.startDate ? formatDate(item.startDate) : 'Start ?'} → {item.endDate ? formatDate(item.endDate) : 'End ?'}
 										</Text>
 										{(() => {
 											const days = computeDurationDays(item.startDate, item.endDate);
 											if (!days) return null;
 											return (
-												<Text style={[styles.metaText, bgUri ? { color: '#efefef' } : null]}>Duration: {days} day{days === 1 ? '' : 's'}</Text>
+												<Text style={[
+													styles.metaText,
+													bgUri ? styles.cardTextShadow : null,
+													bgUri ? { color: '#efefef' } : null
+												]}>
+													Duration: {days} day{days === 1 ? '' : 's'}
+												</Text>
 											);
 										})()}
 										{(() => {
@@ -727,10 +778,18 @@ export default function TripsScreen() {
 													? themeColors.accent
 													: themeColors.textSecondary);
 											const fontStyle = info.kind === 'current' ? 'italic' : 'normal';
-											return <Text style={[styles.countdownText, { color, fontStyle }]}>{info.text}</Text>;
+											return <Text style={[styles.countdownText, { color, fontStyle }, bgUri ? styles.cardTextShadow : null]}>{info.text}</Text>;
 										})()}
-										{!!item.ship && <Text style={[styles.metaText, bgUri ? { color: '#efefef' } : null]}>Ship: {item.ship}</Text>}
-										{!!item.ports?.length && <Text style={[styles.metaText, bgUri ? { color: '#efefef' } : null]}>Ports: {item.ports.length}</Text>}
+										{!!item.ship && <Text style={[
+											styles.metaText,
+											bgUri ? styles.cardTextShadow : null,
+											bgUri ? { color: '#efefef' } : null
+										]}>Ship: {item.ship}</Text>}
+										{!!item.ports?.length && <Text style={[
+											styles.metaText,
+											bgUri ? styles.cardTextShadow : null,
+											bgUri ? { color: '#efefef' } : null
+										]}>Ports: {item.ports.length}</Text>}
 										{/* Removed in-card Add Log button */}
 									</View>
 								</Pressable>

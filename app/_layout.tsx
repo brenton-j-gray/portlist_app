@@ -10,6 +10,7 @@ import { AppState, BackHandler, Image, Platform, Pressable, StyleSheet, Text, Vi
 import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
 import { AppLockProvider } from '../components/AppLockContext';
 import { AuthProvider, useAuth } from '../components/AuthContext';
+import { FeatureFlagsProvider } from '../components/FeatureFlagsContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
 import { pushTrips, syncTripsBackground } from '../lib/sync';
 
@@ -231,9 +232,11 @@ export default function AppLayout() {
     <RootErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <AppLockProvider>
-            <AppLayoutInner />
-          </AppLockProvider>
+          <FeatureFlagsProvider>
+            <AppLockProvider>
+              <AppLayoutInner />
+            </AppLockProvider>
+          </FeatureFlagsProvider>
         </AuthProvider>
       </ThemeProvider>
     </RootErrorBoundary>

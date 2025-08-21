@@ -12,9 +12,13 @@ export const Colors = {
   secondary: '#7FC8F8', // Aqua Mist
   accent: '#F88379', // Coral Glow
   highlight: '#E5C07B', // Golden Sand
+  // Neutral mid-gray for chips/pills
+  neutral: '#64748B',
+  // Success/affirmative (seafoam green)
+  success: '#22C55E',
 
   // Surfaces
-  background: '#FAFAFA', // Pearl White
+  background: '#e6e6e6ff', // Pearl White
   card: '#FFFFFF',
 
   // Gradients (use secondary → primary for a fresh ocean blend)

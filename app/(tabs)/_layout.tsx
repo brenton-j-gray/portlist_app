@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Tabs, router, usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
+import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { useTheme } from '../../components/ThemeContext';
 import AppHeader from '../../components/navigation/AppHeader';
 
 export default function TabsLayout() {
   const { themeColors } = useTheme();
+  const { flags } = useFeatureFlags();
+  const pathname = usePathname();
   const screenOptions = useMemo(() => ({
     tabBarLabelStyle: {
       fontSize: 18,
@@ -38,6 +41,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="map"
+        options={{
+          // Hide when disabled to avoid non-Screen children warnings
+          href: flags.maps ? undefined : null,
+          title: 'Map',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'map' : 'map-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="trips"
         options={{
           title: 'Trips',
@@ -45,6 +59,20 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, focused, size }) => (
             <Ionicons name={focused ? 'boat' : 'boat-outline'} color={color} size={size ?? 24} />
           ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            // Always go to the parent Trips index when pressing the tab
+            e.preventDefault();
+            // Group segments like (tabs) are not part of the path; trips index is '/trips'
+            // Use replace to avoid stacking previous nested screens
+            if (pathname !== '/trips') {
+              router.replace('/trips');
+            } else {
+              // Already on /trips; re-navigate to refresh/scroll-to-top behavior if desired
+              router.replace('/trips');
+            }
+          },
         }}
       />
       <Tabs.Screen

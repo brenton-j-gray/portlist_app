@@ -45,19 +45,22 @@ export default function ViewNoteScreen() {
 		})();
 	}, [id, noteId]);
 
+	const THUMB_SIZE = 54;
+	const THUMB_MARGIN = 6;
 	const styles = useMemo(() => StyleSheet.create({
 		container: { flex: 1, backgroundColor: themeColors.background },
 		content: { padding: 16, paddingBottom: Math.max(24, (insets?.bottom || 0) + 24) },
 		title: { fontSize: 24, fontWeight: '800', color: themeColors.text, marginBottom: 6 },
 		date: { fontSize: 16, fontWeight: '700', color: themeColors.textSecondary, marginBottom: 12 },
 		mediaWrap: { marginBottom: 16 },
-		mediaImage: { width: SCREEN_WIDTH - 32, height: 240, borderRadius: 14 },
-		pagerDots: { flexDirection: 'row', alignSelf: 'center', marginTop: 8, gap: 6 },
-		dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: themeColors.menuBorder },
-		dotActive: { backgroundColor: themeColors.primary },
+		mediaImage: { width: SCREEN_WIDTH - 36, height: 236, borderRadius: 12 },
+		mediaImageActive: { borderWidth: 2, borderColor: themeColors.primary, borderRadius: 12 },
+		filmstrip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8, marginBottom: 2 },
+		thumb: { width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: 8, marginHorizontal: THUMB_MARGIN, borderWidth: 2, borderColor: 'transparent', overflow: 'hidden', backgroundColor: themeColors.card },
+		thumbActive: { borderColor: themeColors.primary },
 		infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8, flexWrap: 'wrap' },
 		infoText: { marginLeft: 0, color: themeColors.text, fontSize: 16 },
-		section: { backgroundColor: themeColors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: themeColors.menuBorder, marginTop: 12 },
+		section: { backgroundColor: themeColors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: themeColors.primary, marginTop: 12 },
 		sectionTitle: { fontSize: 14, fontWeight: '700', color: themeColors.textSecondary, marginBottom: 6 },
 		sectionText: { fontSize: 16, color: themeColors.text, lineHeight: 22 },
 		primaryBtn: { marginTop: 16, backgroundColor: themeColors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
@@ -66,6 +69,7 @@ export default function ViewNoteScreen() {
 		emptyText: { color: themeColors.textSecondary },
 	}), [themeColors, insets?.bottom]);
 	const [page, setPage] = useState(0);
+	const flatListRef = React.useRef<FlatList<any>>(null);
 
 	if (!log || !trip) {
 		return (
@@ -83,66 +87,90 @@ export default function ViewNoteScreen() {
 		<View style={styles.container}>
 			<Stack.Screen options={{ title: 'View Note' }} />
 			<ScrollView contentContainerStyle={styles.content}>
-				{photos.length > 0 ? (
-					<View style={styles.mediaWrap}>
-						<FlatList
-							horizontal
-							pagingEnabled
-							showsHorizontalScrollIndicator={false}
-							data={photos}
-							keyExtractor={(_, i) => String(i)}
-							onMomentumScrollEnd={(ev) => {
-								const idx = Math.round((ev.nativeEvent.contentOffset.x || 0) / (SCREEN_WIDTH - 32));
-								setPage(idx);
-							}}
-							renderItem={({ item }) => (
-								<View style={{ width: SCREEN_WIDTH - 32, marginRight: 8 }}>
-									<Image source={{ uri: item.uri }} style={styles.mediaImage} resizeMode="cover" />
-									{!!item.caption && <Text style={{ color: themeColors.textSecondary, marginTop: 6 }}>{item.caption}</Text>}
-								</View>
-							)}
-						/>
-						{photos.length > 1 && (
-							<View style={styles.pagerDots}>
-								{photos.map((_, i) => (
-									<View key={i} style={[styles.dot, i === page && styles.dotActive]} />
-								))}
-							</View>
-						)}
-					</View>
-				) : (
-					<View style={[styles.mediaWrap, { alignItems: 'center', justifyContent: 'center' }]}>
-						<View
-							style={{
-								width: SCREEN_WIDTH - 32,
-								height: 200,
-								borderRadius: 14,
-								borderWidth: 1,
-								borderColor: themeColors.menuBorder,
-								backgroundColor: themeColors.card,
-								alignItems: 'center',
-								justifyContent: 'center',
-							}}
-							accessibilityLabel="No photos yet"
-						>
-							<Ionicons name="image-outline" size={48} color={themeColors.textSecondary} />
-							<Text style={{ marginTop: 8, color: themeColors.textSecondary }}>No photos yet</Text>
-						</View>
-					</View>
-				)}
+				   {photos.length > 0 ? (
+					   <View style={styles.mediaWrap}>
+						   <FlatList
+							   ref={flatListRef}
+							   horizontal
+							   pagingEnabled
+							   showsHorizontalScrollIndicator={false}
+							   data={photos}
+							   keyExtractor={(_, i) => String(i)}
+							   onMomentumScrollEnd={(ev) => {
+								   const idx = Math.round((ev.nativeEvent.contentOffset.x || 0) / (SCREEN_WIDTH - 36));
+								   setPage(idx);
+							   }}
+							   renderItem={({ item, index }) => (
+								   <View style={{ width: SCREEN_WIDTH - 36, marginRight: 8, alignItems: 'center', justifyContent: 'center' }}>
+									   <Image
+										   source={{ uri: item.uri }}
+										   style={[
+											   styles.mediaImage,
+											   index === page && styles.mediaImageActive,
+										   ]}
+										   resizeMode="cover"
+									   />
+									   {!!item.caption && <Text style={{ color: themeColors.textSecondary, marginTop: 6 }}>{item.caption}</Text>}
+								   </View>
+							   )}
+						   />
+						   {photos.length > 1 && (
+							   <View style={styles.filmstrip}>
+								   {photos.map((p, i) => (
+									   <TouchableOpacity
+										   key={i}
+										   onPress={() => {
+											   setPage(i);
+											   flatListRef.current?.scrollToIndex({ index: i, animated: true });
+										   }}
+										   accessibilityLabel={`Show photo ${i + 1}`}
+									   >
+										   <Image
+											   source={{ uri: p.uri }}
+											   style={[
+												   styles.thumb,
+												   i === page && styles.thumbActive,
+											   ]}
+											   resizeMode="cover"
+										   />
+									   </TouchableOpacity>
+								   ))}
+							   </View>
+						   )}
+					   </View>
+				   ) : (
+					   <View style={[styles.mediaWrap, { alignItems: 'center', justifyContent: 'center' }]}>
+						   <View
+							   style={{
+								   width: SCREEN_WIDTH - 36,
+								   height: 196,
+								   borderRadius: 12,
+								   borderWidth: 1,
+								   borderColor: themeColors.primary,
+								   backgroundColor: themeColors.card,
+								   alignItems: 'center',
+								   justifyContent: 'center',
+							   }}
+							   accessibilityLabel="No photos yet"
+						   >
+							   <Ionicons name="image-outline" size={48} color={themeColors.textSecondary} />
+							   <Text style={{ marginTop: 8, color: themeColors.textSecondary }}>No photos yet</Text>
+						   </View>
+					   </View>
+				   )}
 
 				{!!log.title && <Text style={styles.title}>{log.title}</Text>}
 				<Text style={styles.date}>{(() => { const d = parseLocalFromString(log.date); return d ? formatWeekdayDDMonthYYYY(d) : log.date; })()}</Text>
 
 				{!!log.weather && (
 					<View style={styles.infoRow}>
-						<Pill variant="accent" size="md" iconName={(log.weather + '-outline') as any}>{log.weather}</Pill>
+						<Pill variant="neutral" size="md" iconName={(log.weather + '-outline') as any}>{log.weather}</Pill>
 					</View>
 				)}
 
 				{!!(log.locationName || log.location) && (
 					<View style={styles.infoRow}>
-						<Pill variant="highlight" size="md" iconName="location-outline">
+						<Pill variant="success" size="md" iconName="location-outline">
 							{(() => {
 								const label = log.locationName || '';
 								if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;

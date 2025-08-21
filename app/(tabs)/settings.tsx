@@ -5,11 +5,13 @@ import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpaci
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 // forms moved to a dedicated Security screen
+import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { pushTrips, syncTripsBackground } from '../../lib/sync';
 
 export default function SettingsScreen() {
   const { themePreference, setThemePreference, themeColors } = useTheme();
   const { token, logout } = useAuth();
+  const { flags, setFlag, refresh } = useFeatureFlags();
   const [autoBackup, setAutoBackup] = useState<boolean>(false);
   const [lastBackupAt, setLastBackupAt] = useState<number | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -18,7 +20,7 @@ export default function SettingsScreen() {
     section: {
       backgroundColor: themeColors.card,
       borderWidth: 1,
-      borderColor: themeColors.menuBorder,
+      borderColor: themeColors.primary,
       borderRadius: 12,
       paddingHorizontal: 14,
       paddingVertical: 12,
@@ -35,8 +37,8 @@ export default function SettingsScreen() {
     chipText: { fontSize: 14, color: themeColors.text, fontWeight: '600' },
     primaryBtn: { backgroundColor: themeColors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
     primaryText: { color: 'white', fontWeight: '700' },
-    ghostBtn: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-    ghostText: { color: themeColors.text, fontWeight: '700' },
+  ghostBtn: { backgroundColor: themeColors.primary + '12', borderWidth: 1, borderColor: themeColors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  ghostText: { color: themeColors.primaryDark, fontWeight: '700' },
     dangerBtn: { backgroundColor: themeColors.danger, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
     dangerText: { color: 'white', fontWeight: '700' },
   // input styles no longer needed here
@@ -101,6 +103,42 @@ export default function SettingsScreen() {
         </View>
       </View>
 
+      {/* Features */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Features</Text>
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Weather on Home</Text>
+          <Switch
+            value={flags.weather}
+            onValueChange={(v) => setFlag('weather', v)}
+            thumbColor={flags.weather ? themeColors.primary : themeColors.menuBorder}
+            trackColor={{ false: themeColors.menuBorder, true: themeColors.primary + '66' }}
+          />
+        </View>
+        <View style={styles.separator} />
+        <View style={styles.row}>
+          <Text style={styles.rowLabel}>Map tab</Text>
+          <Switch
+            value={flags.maps}
+            onValueChange={(v) => setFlag('maps', v)}
+            thumbColor={flags.maps ? themeColors.primary : themeColors.menuBorder}
+            trackColor={{ false: themeColors.menuBorder, true: themeColors.primary + '66' }}
+          />
+        </View>
+        <View style={{ height: 8 }} />
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              await AsyncStorage.multiRemove(['ff_weather', 'ff_maps']);
+            } catch {}
+            await refresh();
+          }}
+          style={styles.ghostBtn}
+        >
+          <Text style={styles.ghostText}>Reset feature overrides to defaults</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Backup */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Backup</Text>
@@ -137,7 +175,7 @@ export default function SettingsScreen() {
               <Text style={styles.primaryText}>Sign in</Text>
             </TouchableOpacity>
             <View style={{ height: 8 }} />
-            <TouchableOpacity onPress={() => router.push('/(auth)/register' as any)} style={[styles.primaryBtn, { backgroundColor: themeColors.primary + 'dd' }]}>
+            <TouchableOpacity onPress={() => router.push('/(auth)/register' as any)} style={styles.primaryBtn}>
               <Text style={styles.primaryText}>Create account</Text>
             </TouchableOpacity>
           </>

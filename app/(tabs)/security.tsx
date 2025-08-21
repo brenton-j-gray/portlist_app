@@ -9,7 +9,7 @@ export default function SecurityScreen() {
   const { themeColors } = useTheme();
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
-    section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, borderRadius: 12, padding: 14, marginBottom: 14 },
+  section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, borderRadius: 12, padding: 14, marginBottom: 14 },
     title: { fontSize: 18, fontWeight: '700', color: themeColors.text, marginBottom: 8 },
     label: { fontSize: 12, color: themeColors.textSecondary, marginBottom: 6, fontWeight: '600' },
     row: { flexDirection: 'row', gap: 8 },
@@ -123,7 +123,7 @@ function TwoFASection() {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const styles = useMemo(() => StyleSheet.create({
-    section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, borderRadius: 12, padding: 14, marginBottom: 14 },
+  section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, borderRadius: 12, padding: 14, marginBottom: 14 },
     title: { fontSize: 18, fontWeight: '700', color: themeColors.text, marginBottom: 8 },
     row: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     input: { flex: 1, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 12 },
@@ -237,7 +237,7 @@ function AppLockSection() {
   const { themeColors } = useTheme();
   const { enabled, setEnabled, lockNow } = useAppLock();
   const styles = useMemo(() => StyleSheet.create({
-    section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, borderRadius: 12, padding: 14, marginBottom: 14 },
+  section: { backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, borderRadius: 12, padding: 14, marginBottom: 14 },
     title: { fontSize: 18, fontWeight: '700', color: themeColors.text, marginBottom: 8 },
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     label: { fontSize: 16, color: themeColors.text },
