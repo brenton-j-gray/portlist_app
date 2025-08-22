@@ -4,7 +4,7 @@ export const DarkColors = {
   // Core hues adapted for dark UI
   primary: '#7FC8F8', // Aqua Mist pops on dark
   primaryDark: '#46AEEB', // slightly deeper aqua for contrast
-  secondary: '#1E4D6B', // Deep Sea Blue as secondary accents on dark
+  secondary: '#23597aff', // Deep Sea Blue as secondary accents on dark
   accent: '#F88379', // Coral Glow
   highlight: '#E5C07B', // Golden Sand
   success: '#22C55E',
@@ -12,8 +12,8 @@ export const DarkColors = {
   neutral: '#94A3B8',
 
   // Surfaces
-  background: '#0E1113',
-  card: '#151A1E',
+  background: '#252e33ff',
+  card: '#414f58ff',
 
   // Gradients (use primary → secondary for dark)
   cardAccentGradient: ['#7FC8F8', '#1E4D6B'],
@@ -30,8 +30,10 @@ export const DarkColors = {
   menuDanger: '#f87171',
 
   // Buttons
-  addBtnText: '#0E1113',
-  addBtnBg: '#7FC8F8',
+  btnBg: '#7FC8F8', // primary on dark (aqua)
+  btnText: '#0E1113',
+  addBtnText: '#0E1113', // legacy
+  addBtnBg: '#7FC8F8',   // legacy
 
   // Alerts
   danger: '#f87171',

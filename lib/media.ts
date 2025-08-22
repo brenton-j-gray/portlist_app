@@ -1,18 +1,73 @@
 import * as FileSystem from 'expo-file-system';
 import type { Trip } from '../types';
 
-export async function persistPhotoUris(photos: { uri: string; caption?: string }[]): Promise<{ uri: string; caption?: string }[]> {
-  if (!photos?.length) return photos;
-  // Native only: keep original URIs; no web persistence needed
-  return photos;
+const PHOTOS_DIR = (FileSystem.documentDirectory || '') + 'photos';
+
+async function ensurePhotosDir() {
+  try {
+    if (!FileSystem.documentDirectory) return;
+    const info = await FileSystem.getInfoAsync(PHOTOS_DIR);
+    if (!info.exists) {
+      await FileSystem.makeDirectoryAsync(PHOTOS_DIR, { intermediates: true });
+    }
+  } catch { /* ignore */ }
 }
 
-function isLocalUri(uri: string): boolean {
+function randomName(ext: string) {
+  const safe = ext.replace(/[^a-z0-9]/gi, '').slice(0, 6) || 'jpg';
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}.${safe}`;
+}
+
+function guessExtFromDataUri(data: string) {
+  const match = /^data:(image\/[^;]+);base64,/i.exec(data);
+  if (match) {
+    const mime = match[1];
+    const sub = mime.split('/')[1];
+    if (sub) return sub.toLowerCase();
+  }
+  return 'jpg';
+}
+
+
+function isEphemeralOrExternal(uri: string): boolean {
   if (!uri) return false;
-  const doc = FileSystem.documentDirectory ?? '';
   const cache = FileSystem.cacheDirectory ?? '';
-  // Treat common native URIs as local: file://, content:// (Android), ph:// (iOS Photos assets)
-  return uri.startsWith('file://') || uri.startsWith('content://') || uri.startsWith('ph://') || uri.startsWith(doc) || uri.startsWith(cache);
+  if (uri.startsWith(cache)) return true; // cache can be cleared
+  if (uri.startsWith('content://') || uri.startsWith('ph://')) return true;
+  if (uri.startsWith('data:') || uri.startsWith('blob:')) return true;
+  return false;
+}
+
+export async function persistPhotoUris(photos: { uri: string; caption?: string }[]): Promise<{ uri: string; caption?: string }[]> {
+  if (!photos?.length) return photos;
+  await ensurePhotosDir();
+  const out: { uri: string; caption?: string }[] = [];
+  for (const p of photos) {
+    let { uri } = p;
+    try {
+      if (uri.startsWith('data:')) {
+        const ext = guessExtFromDataUri(uri);
+        const b64 = uri.split(',')[1];
+        const fname = randomName(ext);
+        const dest = `${PHOTOS_DIR}/${fname}`;
+        await FileSystem.writeAsStringAsync(dest, b64, { encoding: FileSystem.EncodingType.Base64 });
+        uri = dest;
+      } else if (uri.startsWith('blob:')) {
+        // blob: not directly accessible; skip (leave as-is) or future fetch & write
+      } else if (isEphemeralOrExternal(uri) && FileSystem.documentDirectory) {
+        // Copy into persistent doc directory
+        const extMatch = /\.([a-zA-Z0-9]{1,5})(?:\?|$)/.exec(uri);
+        const ext = (extMatch?.[1] || 'jpg').toLowerCase();
+        const dest = `${PHOTOS_DIR}/${randomName(ext)}`;
+        try {
+          await FileSystem.copyAsync({ from: uri, to: dest });
+          uri = dest;
+        } catch { /* ignore; keep original */ }
+      }
+    } catch { /* keep original uri */ }
+    out.push({ ...p, uri });
+  }
+  return out;
 }
 
 export async function normalizeTripsMedia(trips: Trip[]): Promise<Trip[]> {
@@ -20,8 +75,8 @@ export async function normalizeTripsMedia(trips: Trip[]): Promise<Trip[]> {
   for (const t of trips) {
     const days = [] as Trip['days'];
     for (const d of t.days) {
-      const photos = d.photos ?? (d.photoUri ? [{ uri: d.photoUri }] : []);
-      const needsPersist = photos.some(p => p.uri.startsWith('data:') || p.uri.startsWith('blob:') || !isLocalUri(p.uri));
+  const photos = d.photos ?? (d.photoUri ? [{ uri: d.photoUri }] : []);
+  const needsPersist = photos.some(p => isEphemeralOrExternal(p.uri));
       let newPhotos = photos;
       if (needsPersist) {
         newPhotos = await persistPhotoUris(photos);

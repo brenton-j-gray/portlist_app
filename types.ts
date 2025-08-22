@@ -22,3 +22,23 @@ export type Trip = {
   days: Note[];
   createdAt: number;
 };
+
+// Generic user-maintained lists (bucket list, packing list, custom checklists)
+export type ListItem = {
+  id: string;
+  text: string;
+  done?: boolean;
+  notes?: string;
+  order: number; // for stable sorting / drag reordering
+  createdAt: number;
+};
+
+export type List = {
+  id: string;
+  title: string;
+  type: 'bucket' | 'packing' | 'custom';
+  items: ListItem[];
+  createdAt: number;
+  updatedAt: number;
+  color?: string; // user-selected accent color for the list
+};

@@ -327,8 +327,8 @@ export default function TripsScreen() {
 	container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
 	header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 },
 	title: { fontSize: 30, fontWeight: '600', color: themeColors.text },
-		addBtn: { backgroundColor: themeColors.addBtnBg, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
-		addText: { color: themeColors.addBtnText, fontWeight: '600' },
+		addBtn: { backgroundColor: (themeColors as any).btnBg || themeColors.secondary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
+		addText: { color: (themeColors as any).btnText || '#FFFFFF', fontWeight: '600' },
 		listContent: { paddingBottom: 30 },
 	card: {
 			marginBottom: 16,
@@ -535,14 +535,14 @@ export default function TripsScreen() {
 				paddingHorizontal: 14,
 				borderRadius: 999,
 				marginVertical: 6,
-				backgroundColor: themeColors.addBtnBg,
+				backgroundColor: (themeColors as any).btnBg || themeColors.secondary,
 				borderWidth: 1,
 				borderColor: themeColors.primaryDark + '29',
 			},
 			pillText: {
 				fontSize: 15,
 				fontWeight: '700',
-				color: themeColors.addBtnText,
+				color: (themeColors as any).btnText || themeColors.badgeText,
 			},
 	}), [themeColors]);
 
@@ -809,7 +809,7 @@ export default function TripsScreen() {
 					width: 56,
 					height: 56,
 					borderRadius: 28,
-					backgroundColor: themeColors.addBtnBg,
+					backgroundColor: (themeColors as any).btnBg || themeColors.secondary,
 					alignItems: 'center',
 					justifyContent: 'center',
 					shadowColor: '#000',
@@ -820,7 +820,7 @@ export default function TripsScreen() {
 					zIndex: 100,
 				}}
 			>
-				<Ionicons name="menu" size={28} color={themeColors.addBtnText} />
+				<Ionicons name="menu" size={28} color={(themeColors as any).btnText || themeColors.badgeText} />
 			</Pressable>
 
 			{/* FAB Action Menu */}
@@ -847,7 +847,7 @@ export default function TripsScreen() {
 							onPress={() => { closeFabMenu(); router.push('/(tabs)/trips/new' as any); }}
 							accessibilityLabel="Add trip"
 						>
-							<Ionicons name="add-circle-outline" size={20} color={themeColors.addBtnText} />
+							<Ionicons name="add-circle-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
 							<Text style={styles.pillText}>Add trip</Text>
 						</TouchableOpacity>
 						<TouchableOpacity
@@ -855,7 +855,7 @@ export default function TripsScreen() {
 							onPress={() => { closeFabMenu(); exportAllTripsJSON(); }}
 							accessibilityLabel="Export trips"
 						>
-							<Ionicons name="download-outline" size={20} color={themeColors.addBtnText} />
+							<Ionicons name="download-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
 							<Text style={styles.pillText}>Export trips</Text>
 						</TouchableOpacity>
 						<TouchableOpacity
@@ -863,7 +863,7 @@ export default function TripsScreen() {
 							onPress={() => { closeFabMenu(); setShowSortMenu(true); }}
 							accessibilityLabel="Open sort options"
 						>
-							<Ionicons name="swap-vertical-outline" size={20} color={themeColors.addBtnText} />
+							<Ionicons name="swap-vertical-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
 							<Text style={styles.pillText}>Sort options</Text>
 						</TouchableOpacity>
 					</View>

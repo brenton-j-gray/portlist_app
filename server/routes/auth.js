@@ -79,6 +79,7 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password, totp } = req.body || {};
+  console.log('[auth/login] incoming', { email, hasPassword: !!password, hasTotp: !!totp });
     if (!email || !password) return res.status(400).json({ error: 'email and password required' });
     const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) return res.status(401).json({ error: 'invalid_credentials' });
@@ -92,12 +93,15 @@ router.post('/login', async (req, res) => {
       return res.json({ mfaRequired: true });
     }
     const token = signToken(user);
+  console.log('[auth/login] success', { email });
     res.json({ token });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'internal_error' });
   }
 });
+
+router.get('/ping', (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
 export default router;
 

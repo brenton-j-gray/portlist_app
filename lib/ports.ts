@@ -64,8 +64,51 @@ export async function upsertCachedPort(entry: PortEntry): Promise<void> {
   await savePortsCache(list);
 }
 
+function stripDiacritics(s: string): string {
+  try { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch { return s; }
+}
 function normalize(s: string): string {
-  return s.trim().toLowerCase();
+  return stripDiacritics(s).trim().toLowerCase();
+}
+
+// Lightweight Jaro-Winkler for better short fuzzy matches (improves e.g. "cozuml" -> "Cozumel")
+function jaroWinkler(a: string, b: string): number {
+  if (a === b) return 1;
+  const al = a.length, bl = b.length;
+  if (!al || !bl) return 0;
+  const matchDistance = Math.floor(Math.max(al, bl) / 2) - 1;
+  const aMatches: boolean[] = new Array(al).fill(false);
+  const bMatches: boolean[] = new Array(bl).fill(false);
+  let matches = 0;
+  for (let i = 0; i < al; i++) {
+    const start = Math.max(0, i - matchDistance);
+    const end = Math.min(i + matchDistance + 1, bl);
+    for (let j = start; j < end; j++) {
+      if (bMatches[j]) continue;
+      if (a[i] !== b[j]) continue;
+      aMatches[i] = true;
+      bMatches[j] = true;
+      matches++;
+      break;
+    }
+  }
+  if (!matches) return 0;
+  let t = 0; // transpositions
+  let k = 0;
+  for (let i = 0; i < al; i++) {
+    if (!aMatches[i]) continue;
+    while (!bMatches[k]) k++;
+    if (a[i] !== b[k]) t++;
+    k++;
+  }
+  t /= 2;
+  const m = matches;
+  let jaro = (m / al + m / bl + (m - t) / m) / 3;
+  // Winkler prefix boost
+  let prefix = 0;
+  for (let i = 0; i < Math.min(4, al, bl); i++) { if (a[i] === b[i]) prefix++; else break; }
+  if (jaro > 0.7 && prefix) jaro = jaro + 0.1 * prefix * (1 - jaro);
+  return jaro;
 }
 
 function levenshtein(a: string, b: string): number {
@@ -88,48 +131,74 @@ function levenshtein(a: string, b: string): number {
 }
 
 function scoreName(query: string, candidate: string): number {
-  const q = normalize(query);
+  const qRaw = normalize(query);
   const c = normalize(candidate);
-  if (!q || !c) return 0;
-  if (c === q) return 1.0;
-  if (c.startsWith(q)) return 0.95;
-  if (c.includes(q)) return 0.85;
-  const dist = levenshtein(q, c);
-  const maxLen = Math.max(q.length, c.length) || 1;
-  const sim = 1 - dist / maxLen; // 0..1
-  return Math.max(0, sim * 0.8);
+  if (!qRaw || !c) return 0;
+  if (c === qRaw) return 1.0;
+  // Token scoring: sum best token matches normalized by token count
+  const tokens = qRaw.split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.length === 0) return 0;
+  let total = 0;
+  for (const t of tokens) {
+    if (!t) continue;
+    if (c === t) { total += 1; continue; }
+    if (c.startsWith(t)) { total += 0.95; continue; }
+    if (c.includes(t)) { total += 0.85; continue; }
+    // Levenshtein similarity fallback
+    const dist = levenshtein(t, c);
+    const maxLen = Math.max(t.length, c.length) || 1;
+    let sim = 1 - dist / maxLen; // 0..1
+    // If still low, try Jaro-Winkler which is strong for transpositions / typos
+    if (sim < 0.75) {
+      const jw = jaroWinkler(t, c);
+      sim = Math.max(sim, jw * 0.9);
+    }
+    total += Math.max(0, sim * 0.8);
+  }
+  let score = total / tokens.length;
+  // Boost if candidate ends with region/country patterns present in query
+  const regionPattern = /\b([A-Z]{2})\b/; // simple two-letter code
+  const regionMatch = query.match(regionPattern);
+  if (regionMatch) {
+    const code = regionMatch[1].toLowerCase();
+    if (c.includes(code)) score += 0.05;
+  }
+  return Math.min(1, score);
 }
 
-export function searchPorts(query: string, cache: PortEntry[], limit = 10): PortEntry[] {
+// Optional: external callers can feed recent port names (most-used) for a slight boost
+export function searchPorts(query: string, cache: PortEntry[], limit = 10, recentNames?: string[]): PortEntry[] {
   if (!query.trim()) return [];
+  const recentSet = new Set((recentNames || []).map(n => normalize(n)).slice(0, 24));
   const pool = [...cache, ...curatedPorts];
   const isPorty = (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier|dock|quay|marina)\b/i.test(s);
+  const qNorm = normalize(query);
   const scored = pool.map(p => {
-    const base = scoreName(query, p.name);
-    const aliasScore = Math.max(0, ...(p.aliases || []).map(a => scoreName(query, a)));
-    const raw = Math.max(base, aliasScore);
-    // Consider it a port suggestion only if it's flagged cruise or looks port-like
+    const base = scoreName(qNorm, p.name);
+    const aliasScore = Math.max(0, ...(p.aliases || []).map(a => scoreName(qNorm, a)));
+    let raw = Math.max(base, aliasScore);
     const porty = (p.isCruise === true) || isPorty(p.name) || (p.aliases || []).some(a => isPorty(a));
-    const bonus = porty ? 0.1 : 0; // small boost
-    return { p, s: Math.min(1, raw + bonus), porty };
-  }).filter(x => x.porty && x.s >= 0.5); // only port-like or explicitly cruise
-  scored.sort((a, b) => (Number(b.porty) - Number(a.porty)) || (b.s - a.s));
+    if (porty) raw += 0.08;
+    if (recentSet.has(normalize(p.name))) raw += 0.04; // small recency boost
+    // Country / region code inclusion if user typed them
+    const regionHint = /,\s*([A-Za-z]{2})(?:,|$)/.exec(query);
+    if (regionHint && (p.regionCode || p.country)) {
+      const code = regionHint[1].toUpperCase();
+      if (p.regionCode === code || p.country === code) raw += 0.05;
+    }
+    return { p, s: Math.min(1, raw), porty };
+  }).filter(x => x.porty && x.s >= 0.45); // slightly lower threshold due to refined scoring
+  scored.sort((a, b) => (b.s - a.s));
   const dedup = new Map<string, PortEntry>();
-  for (const { p, s, porty } of scored) {
+  for (const { p, s } of scored) {
     const key = normalize(p.name);
     const existing = dedup.get(key);
     if (!existing) {
       dedup.set(key, p);
     } else {
-      // Prefer entry with regionCode or country, then porty, then higher score
       const existingRich = (existing.regionCode ? 1 : 0) + (existing.country ? 1 : 0);
       const candidateRich = (p.regionCode ? 1 : 0) + (p.country ? 1 : 0);
-      const existingPorty = /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier)\b/i.test(existing.name);
-      if (
-        candidateRich > existingRich ||
-        (candidateRich === existingRich && (Number(porty) > Number(existingPorty))) ||
-        (candidateRich === existingRich && Number(porty) === Number(existingPorty) && s > scoreName(query, existing.name))
-      ) {
+      if (candidateRich > existingRich && s >= 0.5) {
         dedup.set(key, p);
       }
     }

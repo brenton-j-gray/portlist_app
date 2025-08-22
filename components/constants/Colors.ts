@@ -7,7 +7,7 @@
 // Neutral (light background): Pearl White #FAFAFA
 export const Colors = {
   // Brand core
-  primary: '#1E4D6B', // Deep Sea Blue
+  primary: '#23597aff', // Deep Sea Blue
   primaryDark: '#163A52', // darker shade of Deep Sea Blue for contrast accents
   secondary: '#7FC8F8', // Aqua Mist
   accent: '#F88379', // Coral Glow
@@ -18,7 +18,7 @@ export const Colors = {
   success: '#22C55E',
 
   // Surfaces
-  background: '#e6e6e6ff', // Pearl White
+  background: '#f3f3f3ff', // Pearl White
   card: '#FFFFFF',
 
   // Gradients (use secondary → primary for a fresh ocean blend)
@@ -36,8 +36,11 @@ export const Colors = {
   menuDanger: '#dc2626',
 
   // Buttons
-  addBtnText: '#FFFFFF',
-  addBtnBg: '#1E4D6B',
+  // Standardized buttons now use primary background
+  btnBg: '#23597aff',
+  btnText: '#FFFFFF',
+  addBtnText: '#FFFFFF', // legacy (to be deprecated)
+  addBtnBg: '#1E4D6B',   // legacy (to be deprecated)
 
   // Alerts
   danger: '#dc2626',

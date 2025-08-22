@@ -1,12 +1,12 @@
 import { Link, router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 
 export default function LoginScreen() {
   const { themeColors } = useTheme();
-  const { login } = useAuth();
+  const { login, token, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,8 +37,9 @@ export default function LoginScreen() {
       }
       if ('token' in res && res.token) {
         // Delegate token handling to AuthContext.login for now by reusing its flow
-        await login(email.trim().toLowerCase(), password);
-        return;
+  await login(email.trim().toLowerCase(), password);
+  router.replace('/(tabs)');
+  return;
       }
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -47,6 +48,13 @@ export default function LoginScreen() {
       setBusy(false);
     }
   }
+
+  // Redirect guard: if already authenticated, skip login UI
+  useEffect(() => {
+    if (!loading && token) {
+      router.replace('/(tabs)');
+    }
+  }, [loading, token]);
 
   return (
     <View style={styles.container}>

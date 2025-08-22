@@ -19,19 +19,44 @@ export async function clearToken() {
 
 type AuthResponse = { token: string } | { mfaRequired: true } | { error: string };
 
-async function post<T>(path: string, body: any): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+function withTimeout<T>(ms: number, fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fn(ctrl.signal)
+    .finally(() => clearTimeout(id))
+    .catch(e => {
+      if (e?.name === 'AbortError') throw new Error('Request timed out');
+      throw e;
+    });
+}
+
+async function post<T>(path: string, body: any, timeoutMs = 12000): Promise<T> {
+  return withTimeout(timeoutMs, async (signal) => {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    });
+    let json: any = null;
+    try { json = await res.json(); } catch {}
+    if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+    return json as T;
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-  return json as T;
 }
 
 export async function apiLogin(email: string, password: string, totp?: string) {
-  return post<AuthResponse>('/auth/login', { email, password, ...(totp ? { totp } : {}) });
+  try {
+    console.log('[apiLogin] start', { email, hasTotp: !!totp });
+    // Optional quick ping to verify connectivity & avoid waiting full timeout if route unreachable
+  try { await post('/auth/ping', {}, 4000); } catch (e: any) { console.log('[apiLogin] ping failed (continuing)', e?.message); }
+    const res = await post<AuthResponse>('/auth/login', { email, password, ...(totp ? { totp } : {}) });
+    console.log('[apiLogin] response', res && ('token' in res ? 'token' : res));
+    return res;
+  } catch (e) {
+    console.log('[apiLogin] error', e);
+    throw e;
+  }
 }
 
 export async function apiRegister(email: string, password: string, username?: string) {
@@ -50,22 +75,38 @@ export async function apiHealth(): Promise<{ ok: boolean; [k: string]: any }> {
 // Profile
 export type Profile = { userId?: string; fullName?: string; username?: string; bio?: string; createdAt?: string; updatedAt?: string } | null;
 
-async function authGet<T>(path: string): Promise<T> {
+async function authGet<T>(path: string, timeoutMs = 12000): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${API_URL}${path}`, { headers: { 'Authorization': token ? `Bearer ${token}` : '' } });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-  return json as T;
+  return withTimeout(timeoutMs, async (signal) => {
+    const res = await fetch(`${API_URL}${path}`, { headers: { 'Authorization': token ? `Bearer ${token}` : '' }, signal });
+    let json: any = null;
+    try { json = await res.json(); } catch {}
+    if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+    return json as T;
+  });
 }
 
-async function authPut<T>(path: string, body: any): Promise<T> {
+async function authPut<T>(path: string, body: any, opts?: { timeoutMs?: number }): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
+  const timeoutMs = opts?.timeoutMs ?? 12000;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch (e: any) {
+    clearTimeout(to);
+    if (e?.name === 'AbortError') throw new Error('Request timed out');
+    throw e;
+  }
+  clearTimeout(to);
+  let json: any = null;
+  try { json = await res.json(); } catch { /* ignore */ }
   if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
   return json as T;
 }
@@ -75,8 +116,8 @@ export async function apiGetProfile() {
 }
 
 export async function apiSaveProfile(p: { fullName?: string; username?: string; bio?: string }) {
-  const res = await authPut<{ profile: Profile }>('/profile', p);
-  return res;
+  // Use a timeout so UI doesn't hang forever on network issues
+  return authPut<{ profile: Profile }>('/profile', p, { timeoutMs: 12000 });
 }
 
 // Account management
@@ -108,14 +149,37 @@ export async function api2faDisable(password: string) {
 }
 
 // Minimal POST with auth (reusing token helpers)
-async function authPost<T>(path: string, body: any): Promise<T> {
+async function authPost<T>(path: string, body: any, timeoutMs = 12000): Promise<T> {
   const token = await getToken();
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-    body: JSON.stringify(body),
+  return withTimeout(timeoutMs, async (signal) => {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+      body: JSON.stringify(body),
+      signal,
+    });
+    let json: any = null;
+    try { json = await res.json(); } catch {}
+    if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+    return json as T;
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-  return json as T;
+}
+
+// Routing: compute a polyline between waypoints (server may provide maritime-aware paths later)
+export type LatLng = { latitude: number; longitude: number };
+export async function apiComputeRoute(points: LatLng[]): Promise<{ polyline: LatLng[]; cached?: boolean }> {
+  // Try specific marine endpoint first if available, then fallback to generic /route
+  const body = { points };
+  try {
+    const res = await fetch(`${API_URL}/route/marine`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.ok) {
+      const json = await res.json();
+      return json as { polyline: LatLng[]; cached?: boolean };
+    }
+  } catch { /* ignore */ }
+  // Fallback
+  const res2 = await fetch(`${API_URL}/route`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const json2 = await res2.json();
+  if (!res2.ok) throw new Error(json2?.error || `HTTP ${res2.status}`);
+  return json2 as { polyline: LatLng[]; cached?: boolean };
 }

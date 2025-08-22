@@ -64,7 +64,7 @@ export default function ViewNoteScreen() {
 		sectionTitle: { fontSize: 14, fontWeight: '700', color: themeColors.textSecondary, marginBottom: 6 },
 		sectionText: { fontSize: 16, color: themeColors.text, lineHeight: 22 },
 		primaryBtn: { marginTop: 16, backgroundColor: themeColors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
-		primaryText: { color: themeColors.addBtnText, fontWeight: '800' },
+		primaryText: { color: (themeColors as any).btnText || themeColors.badgeText, fontWeight: '800' },
 		empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
 		emptyText: { color: themeColors.textSecondary },
 	}), [themeColors, insets?.bottom]);

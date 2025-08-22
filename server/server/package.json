@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "cjp-auth-server": "file:.."
+  }
+}

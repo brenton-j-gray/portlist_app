@@ -138,7 +138,7 @@ export default function TripDetail() {
   headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 },
   btn: { backgroundColor: themeColors.primary, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2 },
   btnAlt: { backgroundColor: themeColors.primary + '12', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2, borderWidth: 1, borderColor: themeColors.primary },
-  btnText: { color: themeColors.addBtnText, fontWeight: '700', fontSize: 16 },
+  btnText: { color: (themeColors as any).btnText || themeColors.badgeText, fontWeight: '700', fontSize: 16 },
   btnTextAlt: { color: themeColors.primaryDark, fontWeight: '700', fontSize: 16 },
     card: { padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10 },
     cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: themeColors.text },
@@ -330,7 +330,7 @@ export default function TripDetail() {
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowPortsModal(false)} />
         <View style={{ position: 'absolute', left: 0, right: 0, top: '30%', marginHorizontal: 24, backgroundColor: themeColors.card, borderRadius: 16, padding: 20, alignSelf: 'center', elevation: 8 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: themeColors.text }}>Ports</Text>
-          {trip.ports.map((port, idx) => (
+          {trip.ports && trip.ports.map((port, idx) => (
             <Text key={idx} style={{ fontSize: 16, color: themeColors.text, marginBottom: 6 }}>{port}</Text>
           ))}
           <Pressable onPress={() => setShowPortsModal(false)} style={{ marginTop: 18, alignSelf: 'flex-end', padding: 8 }}>

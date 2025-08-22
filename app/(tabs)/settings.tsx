@@ -33,12 +33,13 @@ export default function SettingsScreen() {
     separator: { height: 1, backgroundColor: themeColors.menuBorder },
     chips: { flexDirection: 'row', gap: 8, marginTop: 6 },
     chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder },
-    chipActive: { backgroundColor: themeColors.primary + '22', borderColor: themeColors.primary },
+  chipActive: { backgroundColor: themeColors.primary + '22', borderColor: themeColors.primary }, // generic active (other selectors)
+  appearanceChipActive: { backgroundColor: themeColors.accent + '22', borderColor: themeColors.accent },
     chipText: { fontSize: 14, color: themeColors.text, fontWeight: '600' },
-    primaryBtn: { backgroundColor: themeColors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
-    primaryText: { color: 'white', fontWeight: '700' },
-  ghostBtn: { backgroundColor: themeColors.primary + '12', borderWidth: 1, borderColor: themeColors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  ghostText: { color: themeColors.primaryDark, fontWeight: '700' },
+    primaryBtn: { backgroundColor: (themeColors as any).btnBg || themeColors.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+    primaryText: { color: (themeColors as any).btnText || '#FFFFFF', fontWeight: '700' },
+  ghostBtn: { backgroundColor: ((themeColors as any).btnBg || themeColors.primary) + '12', borderWidth: 1, borderColor: (themeColors as any).btnBg || themeColors.primary, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  ghostText: { color: (themeColors as any).btnBg || themeColors.primary, fontWeight: '700' },
     dangerBtn: { backgroundColor: themeColors.danger, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
     dangerText: { color: 'white', fontWeight: '700' },
   // input styles no longer needed here
@@ -90,13 +91,13 @@ export default function SettingsScreen() {
         <View>
           <Text style={styles.rowLabel}>Theme</Text>
           <View style={styles.chips}>
-            <TouchableOpacity style={[styles.chip, themePreference === 'system' && styles.chipActive]} onPress={() => setThemePreference('system')}>
+            <TouchableOpacity style={[styles.chip, themePreference === 'system' && styles.appearanceChipActive]} onPress={() => setThemePreference('system')}>
               <Text style={styles.chipText}>System</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.chip, themePreference === 'light' && styles.chipActive]} onPress={() => setThemePreference('light')}>
+            <TouchableOpacity style={[styles.chip, themePreference === 'light' && styles.appearanceChipActive]} onPress={() => setThemePreference('light')}>
               <Text style={styles.chipText}>Light</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.chip, themePreference === 'dark' && styles.chipActive]} onPress={() => setThemePreference('dark')}>
+            <TouchableOpacity style={[styles.chip, themePreference === 'dark' && styles.appearanceChipActive]} onPress={() => setThemePreference('dark')}>
               <Text style={styles.chipText}>Dark</Text>
             </TouchableOpacity>
           </View>
@@ -133,9 +134,9 @@ export default function SettingsScreen() {
             } catch {}
             await refresh();
           }}
-          style={styles.ghostBtn}
+          style={styles.primaryBtn}
         >
-          <Text style={styles.ghostText}>Reset feature overrides to defaults</Text>
+          <Text style={styles.primaryText}>Reset feature overrides to defaults</Text>
         </TouchableOpacity>
       </View>
 
@@ -161,9 +162,9 @@ export default function SettingsScreen() {
           <Text style={styles.rowLabel}>Last Backup</Text>
           <Text style={styles.valueText}>{lastBackupAt ? new Date(lastBackupAt).toLocaleString() : 'Never'}</Text>
         </View>
-        <TouchableOpacity onPress={onBackupNow} disabled={!token || backupBusy} style={[styles.primaryBtn, { opacity: !token ? 0.6 : 1 }]}>
+    <TouchableOpacity onPress={onBackupNow} disabled={!token || backupBusy} style={[styles.primaryBtn, { opacity: !token ? 0.6 : 1 }]}>
           {backupBusy ? (
-            <ActivityIndicator color={'white'} />
+      <ActivityIndicator color={(themeColors as any).btnText || '#FFFFFF'} />
           ) : (
             <Text style={styles.primaryText}>Backup Now</Text>
           )}
@@ -186,12 +187,12 @@ export default function SettingsScreen() {
       {token && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} style={styles.ghostBtn}>
-            <Text style={styles.ghostText}>Profile</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile' as any)} style={styles.primaryBtn}>
+            <Text style={styles.primaryText}>Profile</Text>
           </TouchableOpacity>
           <View style={{ height: 8 }} />
-          <TouchableOpacity onPress={() => router.push('/(tabs)/security' as any)} style={styles.ghostBtn}>
-            <Text style={styles.ghostText}>Security</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/security' as any)} style={styles.primaryBtn}>
+            <Text style={styles.primaryText}>Security</Text>
           </TouchableOpacity>
           <View style={{ height: 8 }} />
           <TouchableOpacity onPress={logout} style={styles.dangerBtn}>

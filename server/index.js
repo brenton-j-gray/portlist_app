@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import morgan from 'morgan';
 import authRouter from './routes/auth.js';
 import profileRouter from './routes/profile.js';
+import routeRouter from './routes/route.js';
 import syncRouter from './routes/sync.js';
 
 const app = express();
@@ -21,6 +22,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/auth', authRouter);
 app.use('/sync', syncRouter);
 app.use('/profile', profileRouter);
+app.use('/route', routeRouter);
 
 const MONGO_URI = process.env.MONGO_URI;
 if (!MONGO_URI) {

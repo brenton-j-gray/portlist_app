@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { useTheme } from '../../components/ThemeContext';
+// Removed advanced route computation; simple straight polylines only
 import { loadPortsCache, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort } from '../../lib/ports';
 import { getTrips } from '../../lib/storage';
 import type { Trip } from '../../types';
@@ -28,8 +29,10 @@ export default function MapScreen() {
       position: 'absolute', top: 10, left: 10, right: 10,
       backgroundColor: themeColors.card, borderColor: themeColors.menuBorder, borderWidth: 1,
       borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      flexDirection: 'column',
     },
+    overlayTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
     overlayText: { color: themeColors.text },
     overlayChip: {
       paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999,
@@ -37,7 +40,37 @@ export default function MapScreen() {
     },
     overlayChipActive: { backgroundColor: themeColors.primary + '22', borderColor: themeColors.primary },
     overlayChipText: { color: themeColors.text, fontWeight: '600' },
-  }), [themeColors]);
+    calloutBubble: {
+      maxWidth: 240,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderWidth: 1,
+      backgroundColor: colorScheme === 'dark' ? '#0f1820' : '#FFFFFF',
+      borderColor: colorScheme === 'dark' ? '#1e2c36' : '#e2e8f0',
+      shadowColor: '#000',
+      shadowOpacity: 0.35,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 5,
+    },
+    calloutTitle: {
+      fontWeight: '700',
+      fontSize: 15,
+      marginBottom: 2,
+      color: colorScheme === 'dark' ? '#FFFFFF' : '#111111',
+    },
+    calloutSubtitle: {
+      fontSize: 13,
+      color: colorScheme === 'dark' ? '#b8c5cc' : '#333333',
+    },
+    calloutAction: {
+      fontSize: 13,
+      fontWeight: '600',
+      marginTop: 8,
+      color: themeColors.primary,
+    },
+  }), [themeColors, colorScheme]);
 
   const refresh = useCallback(async () => {
     const [t, cache] = await Promise.all([
@@ -51,34 +84,41 @@ export default function MapScreen() {
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
   // State/memos used by UI must be declared before any conditional returns
-  const [filterMode, setFilterMode] = useState<'all' | 'active' | 'trip'>('all');
-  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const now = Date.now();
-  // Persist/restore filter state
+  // Category filter matches Trips screen: in progress, upcoming, completed, all
+  const [category, setCategory] = useState<'inprogress' | 'upcoming' | 'completed' | 'all'>('all');
+  // Persist/restore category state
   useEffect(() => {
     (async () => {
       try {
-        const fm = await AsyncStorage.getItem('map_filter_mode');
-        const st = await AsyncStorage.getItem('map_selected_trip');
-        if (fm === 'all' || fm === 'active' || fm === 'trip') setFilterMode(fm);
-        if (st) setSelectedTripId(st);
+        const cat = await AsyncStorage.getItem('map_filter_category_v1');
+        if (cat === 'inprogress' || cat === 'upcoming' || cat === 'completed' || cat === 'all') setCategory(cat);
       } catch {}
     })();
   }, []);
   useEffect(() => {
-    (async () => {
-      try { await AsyncStorage.setItem('map_filter_mode', filterMode); } catch {}
-      try {
-        if (selectedTripId) await AsyncStorage.setItem('map_selected_trip', selectedTripId);
-        else await AsyncStorage.removeItem('map_selected_trip');
-      } catch {}
-    })();
-  }, [filterMode, selectedTripId]);
+    (async () => { try { await AsyncStorage.setItem('map_filter_category_v1', category); } catch {} })();
+  }, [category]);
 
-  // Active trips heuristic
-  const activeTrips = useMemo(() => trips.filter(t => !t.completed && (!t.endDate || new Date(t.endDate).getTime() >= now)), [trips, now]);
-  const selectedTrip = useMemo(() => trips.find(t => t.id === selectedTripId) || null, [trips, selectedTripId]);
+  // Match logic from Trips screen
+  function parseLocalYmd(s: string): Date { const [y, m, d] = s.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); }
+  function startOfToday(): Date { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
+  function isTripCompleted(t: Trip) {
+    if (t.completed) return true;
+    if (!t.endDate) return false;
+    const endTs = parseLocalYmd(t.endDate).getTime();
+    return endTs < startOfToday().getTime();
+  }
+  function isTripInProgress(t: Trip) {
+    if (t.completed) return false;
+    if (!t.startDate) return false;
+    const today = startOfToday().getTime();
+    const startTs = parseLocalYmd(t.startDate).getTime();
+    const hasEnd = !!t.endDate;
+    const endTs = hasEnd ? parseLocalYmd(t.endDate as string).getTime() : undefined;
+    if (today < startTs) return false;
+    if (typeof endTs === 'number' && today > endTs) return false;
+    return true;
+  }
 
   const mapDisabled = !flags.maps;
 
@@ -105,8 +145,9 @@ export default function MapScreen() {
   }, [REGION_KEY, initial, region]);
 
   let filteredTrips = trips as Trip[];
-  if (filterMode === 'active') filteredTrips = activeTrips;
-  else if (filterMode === 'trip' && selectedTrip) filteredTrips = [selectedTrip];
+  if (category === 'completed') filteredTrips = trips.filter(isTripCompleted);
+  else if (category === 'inprogress') filteredTrips = trips.filter(isTripInProgress);
+  else if (category === 'upcoming') filteredTrips = trips.filter(t => !isTripCompleted(t) && !isTripInProgress(t));
 
   const markers = useMemo(() => {
     const items: { key: string; lat: number; lng: number; title: string; subtitle?: string; tripId: string; noteId: string }[] = [];
@@ -259,6 +300,8 @@ export default function MapScreen() {
     return { portMarkers: ports, tripPaths: paths, unresolvedPorts: unresolved };
   }, [filteredTrips, portCache]);
 
+  // Removed route caching/fetching – paths render directly between recorded/derived port points.
+
   // Effect: for any unresolved ports, try online geocoding and cache results
   // Normalize helper for names
   const normalizeName = useCallback((s: string) => s.trim().toLowerCase(), []);
@@ -302,18 +345,14 @@ export default function MapScreen() {
     })();
   }, [unresolvedPorts, pendingPorts, normalizeName]);
 
-  // Animated cluster bubble
-  const ClusterBubble = ({ count }: { count: number }) => {
-    const scale = useRef(new Animated.Value(0.8)).current;
-    useEffect(() => {
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 6, tension: 80 }).start();
-    }, [scale, count]);
-    return (
-      <Animated.View style={{ transform: [{ scale }], width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.primary, borderWidth: 2, borderColor: themeColors.background }}>
-        <Text style={{ color: 'white', fontWeight: '700' }}>{count}</Text>
-      </Animated.View>
-    );
-  };
+  // Static cluster bubble (no animation to prevent flashing)
+  const ClusterBubble = ({ count }: { count: number }) => (
+    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: (themeColors as any).primaryDark || themeColors.primary, borderWidth: 2, borderColor: themeColors.background, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
+      <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{count}</Text>
+    </View>
+  );
+
+  // NoteMarker removed; using native pin to reduce flicker
 
   return (
     <View style={styles.container}>
@@ -330,96 +369,84 @@ export default function MapScreen() {
         }}
       >
     {/* Cruise lines between planned ports per trip */}
-    {tripPaths.map(path => (
-      <Polyline
-        key={path.key}
-        coordinates={path.coords}
-        strokeColor={themeColors.secondary}
-        strokeWidth={4}
-        lineCap="round"
-        lineJoin="round"
-      />
-    ))}
+  {tripPaths.map(path => (
+        <Polyline
+          key={path.key}
+          coordinates={path.coords}
+          strokeColor={themeColors.secondary}
+          strokeWidth={4}
+          lineCap="round"
+          lineJoin="round"
+          geodesic
+        />
+      ))}
     {clusters.map(item => (
-              item.type === 'point' ? (
-                <Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }}>
-                  <Callout onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
-                    <View style={{ maxWidth: 240 }}>
-                      <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#fff' : '#111' }}>{item.point.title}</Text>
-                      {!!item.point.subtitle && <Text style={{ color: colorScheme === 'dark' ? '#eee' : '#333' }}>{item.point.subtitle}</Text>}
-                      <Text style={{ color: '#007aff', marginTop: 6 }}>Open note</Text>
-                    </View>
-                  </Callout>
-                </Marker>
-              ) : (
-                <Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)}>
-                  <ClusterBubble count={item.cluster.count} />
-                </Marker>
-              )
+      item.type === 'point' ? (
+        <Marker
+          key={item.point.key}
+          coordinate={{ latitude: item.point.lat, longitude: item.point.lng }}
+          pinColor={(themeColors as any).primaryDark || themeColors.primary}
+          tracksViewChanges={false}
+          accessibilityLabel={`Note: ${item.point.title}`}
+        >
+          <Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
+            <View style={styles.calloutBubble}>
+              <Text style={styles.calloutTitle}>{item.point.title}</Text>
+              {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
+              <Text style={styles.calloutAction}>Open note</Text>
+            </View>
+          </Callout>
+        </Marker>
+      ) : (
+  <Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
+          <ClusterBubble count={item.cluster.count} />
+        </Marker>
+      )
     ))}
-    {/* Planned port markers with distinct color (rendered last to sit on top) */}
+    {/* Planned ports as minimalist circles (no callouts) */}
     {portMarkers.map(pm => (
       <Marker
         key={pm.key}
         coordinate={{ latitude: pm.lat, longitude: pm.lng }}
-        pinColor={themeColors.accent}
-        title={pm.title}
+        anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={false}
         zIndex={9999}
+        accessibilityLabel={`Planned port: ${pm.title}`}
+  title={pm.title || 'Planned port'}
+  description={'Planned port'}
       >
-        <Callout>
-          <View style={{ maxWidth: 240 }}>
-            <Text style={{ fontWeight: '700', color: colorScheme === 'dark' ? '#fff' : '#111' }}>Planned port</Text>
-            <Text style={{ color: colorScheme === 'dark' ? '#eee' : '#333' }}>{pm.title}</Text>
-          </View>
-        </Callout>
+        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
       </Marker>
     ))}
   </MapView>
   )}
       <View style={styles.overlay}>
-        <Text style={styles.overlayText}>
-          {filterMode === 'trip' && selectedTrip ? `Showing: ${selectedTrip.title}` : filterMode === 'active' ? 'Showing: Active trips' : 'Showing: All trips'}
-        </Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => {
-              setDropdownOpen(false);
-              setFilterMode(prev => (prev === 'all' ? 'active' : 'all'));
-              if (filterMode !== 'trip') setSelectedTripId(null);
-            }}
-            style={[styles.overlayChip, (filterMode === 'active') ? styles.overlayChipActive : null]}
-          >
-            <Text style={styles.overlayChipText}>{filterMode === 'active' ? 'Active only' : 'All trips'}</Text>
-          </TouchableOpacity>
-          {activeTrips.length > 1 && (
-            <TouchableOpacity onPress={() => setDropdownOpen(v => !v)} style={[styles.overlayChip, (filterMode === 'trip') ? styles.overlayChipActive : null]}>
-              <Text style={styles.overlayChipText}>{filterMode === 'trip' && selectedTrip ? selectedTrip.title : 'Pick active trip'}</Text>
+        <View style={styles.overlayTopRow}>
+          <Text style={styles.overlayText}>
+            {category === 'inprogress' ? 'Showing: In Progress' : category === 'upcoming' ? 'Showing: Upcoming' : category === 'completed' ? 'Showing: Completed' : 'Showing: All Cruises'}
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => {
+                setCategory(prev => prev === 'inprogress' ? 'upcoming' : prev === 'upcoming' ? 'completed' : prev === 'completed' ? 'all' : 'inprogress');
+              }}
+              style={[styles.overlayChip, styles.overlayChipActive]}
+            >
+              <Text style={styles.overlayChipText}>
+                {category === 'inprogress' ? 'In Progress' : category === 'upcoming' ? 'Upcoming' : category === 'completed' ? 'Completed' : 'All Cruises'}
+              </Text>
             </TouchableOpacity>
-          )}
-          {/* Legend and counts */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
-            <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: themeColors.accent, marginRight: 4 }} />
-            <Text style={[styles.overlayChipText, { marginRight: 8 }]}>Planned ports: {portMarkers.length}</Text>
-            <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: themeColors.primary, marginRight: 4 }} />
-            <Text style={styles.overlayChipText}>Notes/Clusters</Text>
           </View>
         </View>
-      </View>
-  {dropdownOpen && activeTrips.length > 1 && (
-        <View style={{ position: 'absolute', right: 10, top: 56, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder, borderRadius: 8, overflow: 'hidden' }}>
-          <TouchableOpacity
-            style={{ paddingHorizontal: 12, paddingVertical: 10 }}
-            onPress={() => { setFilterMode('active'); setSelectedTripId(null); setDropdownOpen(false); }}
-          >
-            <Text style={{ color: themeColors.text }}>All active trips</Text>
-          </TouchableOpacity>
-          {activeTrips.map(t => (
-            <TouchableOpacity key={t.id} style={{ paddingHorizontal: 12, paddingVertical: 10 }} onPress={() => { setFilterMode('trip'); setSelectedTripId(t.id); setDropdownOpen(false); }}>
-              <Text style={{ color: themeColors.text }}>{t.title}</Text>
-            </TouchableOpacity>
-          ))}
+        {/* Legend moved beneath filter controls */}
+        <View style={styles.legendRow}>
+          <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: themeColors.accent, marginRight: 6 }} />
+          <Text style={[styles.overlayChipText, { marginRight: 10 }]}>Planned ports: {portMarkers.length}</Text>
+          <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: (themeColors as any).primaryDark || themeColors.primary, marginRight: 6 }} />
+          <Text style={styles.overlayChipText}>Notes / Clusters</Text>
         </View>
-      )}
+      </View>
+  {/* Trip selection dropdown removed; category cycles instead */}
       {mapDisabled && (
         <View style={[styles.container, styles.empty, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }] }>
           <Text style={styles.emptyText}>Map is disabled.</Text>

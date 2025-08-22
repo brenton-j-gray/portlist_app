@@ -7,7 +7,8 @@ import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo } from 'react';
 import { AppState, BackHandler, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import 'react-native-gesture-handler'; // ensures gesture handler is initialized (helps avoid web/runtime crashes)
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+// Gesture handler root for drag gestures and other detectors
 import { AppLockProvider } from '../components/AppLockContext';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { FeatureFlagsProvider } from '../components/FeatureFlagsContext';
@@ -229,17 +230,19 @@ function AppLayoutInner() {
 
 export default function AppLayout() {
   return (
-    <RootErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <FeatureFlagsProvider>
-            <AppLockProvider>
-              <AppLayoutInner />
-            </AppLockProvider>
-          </FeatureFlagsProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </RootErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <RootErrorBoundary>
+        <ThemeProvider>
+          <AuthProvider>
+            <FeatureFlagsProvider>
+              <AppLockProvider>
+                <AppLayoutInner />
+              </AppLockProvider>
+            </FeatureFlagsProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </RootErrorBoundary>
+    </GestureHandlerRootView>
   );
 }
 
