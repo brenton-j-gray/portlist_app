@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
@@ -32,19 +33,10 @@ export default function TabsLayout() {
   }), [themeColors]);
   return (
     <Tabs screenOptions={screenOptions}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused, size }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} color={color} size={size ?? 24} />
-          ),
-        }}
-      />
+      {/* Leftmost: Map */}
       <Tabs.Screen
         name="map"
         options={{
-          // Hide when disabled to avoid non-Screen children warnings
           href: flags.maps ? undefined : null,
           title: 'Map',
           tabBarIcon: ({ color, focused, size }) => (
@@ -52,21 +44,31 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Next: Trips (standard tab) */}
       <Tabs.Screen
         name="trips"
         options={{
           title: 'Trips',
           headerShown: false,
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'boat' : 'boat-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
+      {/* Center floating button: Home */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
           tabBarLabel: '',
           tabBarButton: (props) => {
             const selected = (props as any)?.accessibilityState?.selected;
             return (
-              <CentralTripsButton
+              <CentralHomeButton
                 selected={selected}
                 onPress={() => {
-                  // Only navigate if not already on the Trips root
-                  if (pathname !== '/trips') {
-                    router.replace('/trips');
+                  if (pathname !== '/') {
+                    router.replace('/');
                   }
                 }}
               />
@@ -100,44 +102,89 @@ export default function TabsLayout() {
   );
 }
 
-// Floating glossy central Trips button
-function CentralTripsButton({ selected, onPress }: { selected?: boolean; onPress?: () => void }) {
+// Floating glossy central Home button
+function CentralHomeButton({ selected: _selectedFromTabs, onPress }: { selected?: boolean; onPress?: () => void }) {
+  const { themeColors } = useTheme();
+  const pathname = usePathname();
+  const selected = pathname === '/'; // derive explicitly to avoid timing issues with custom tabBarButton
+  const bg = selected ? themeColors.primary : (themeColors.primaryDark ?? themeColors.primary);
+  const iconColor = themeColors.btnText;
+  const ringColor = selected ? themeColors.accent : themeColors.card;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel="Trips"
+      accessibilityLabel="Home"
       style={({ pressed }) => [{
         position: 'relative',
         top: -24,
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        backgroundColor: selected ? '#3478F6' : '#4F6DFF',
+        width: 74, // slightly larger to make ring + glow clearer
+        height: 74,
+        borderRadius: 37,
+        backgroundColor: bg,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
-        elevation: 8,
+        shadowColor: selected ? themeColors.accent : '#000',
+        shadowOffset: { width: 0, height: selected ? 6 : 4 },
+        shadowOpacity: selected ? 0.55 : 0.35,
+        shadowRadius: selected ? 11 : 7,
+        elevation: selected ? 15 : 10,
         marginHorizontal: 8,
-        borderWidth: 3,
-        borderColor: '#FFF',
-        opacity: pressed ? 0.85 : 1,
+        borderWidth: selected ? 4 : 3,
+        borderColor: ringColor,
+        opacity: pressed ? 0.9 : 1,
+        overflow: 'visible',
       }]}
     >
-      <View style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: '55%',
-        borderTopLeftRadius: 35,
-        borderTopRightRadius: 35,
-        backgroundColor: 'rgba(255,255,255,0.35)',
-      }} />
-      <Ionicons name={selected ? 'boat' : 'boat-outline'} size={30} color={'#FFF'} />
+      {/* Inner glow ring */}
+      {selected && (
+        <View style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: 37,
+          borderWidth: 2,
+          borderColor: 'rgba(255,255,255,0.35)',
+        }} />
+      )}
+      {/* Accent radial glow contained within bounds so it's not clipped by tab bar */}
+      {selected && (
+        <LinearGradient
+          pointerEvents="none"
+          colors={[
+            'rgba(248,131,121,0.50)',
+            'rgba(248,131,121,0.20)',
+            'rgba(248,131,121,0.05)',
+            'rgba(248,131,121,0)'
+          ]}
+          locations={[0,0.55,0.8,1]}
+          start={{ x: 0.5, y: 0.15 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{
+            position: 'absolute',
+            top: -2,
+            left: -2,
+            right: -2,
+            bottom: -2,
+            borderRadius: 39,
+          }}
+        />
+      )}
+      {/* Top light sheen */}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(255,255,255,0.55)', 'rgba(255,255,255,0.08)', 'rgba(255,255,255,0)']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          borderRadius: 37,
+        }}
+      />
+      <Ionicons name={selected ? 'home' : 'home-outline'} size={30} color={iconColor} />
     </Pressable>
   );
 }
