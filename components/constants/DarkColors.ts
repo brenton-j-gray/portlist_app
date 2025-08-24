@@ -12,8 +12,9 @@ export const DarkColors = {
   neutral: '#94A3B8',
 
   // Surfaces
-  background: '#252e33ff',
-  card: '#414f58ff',
+  // Darkened background & card to reduce contrast of lists in dark mode
+  background: '#1b2327',
+  card: '#2c383f',
 
   // Gradients (use primary → secondary for dark)
   cardAccentGradient: ['#7FC8F8', '#1E4D6B'],

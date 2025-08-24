@@ -1,3 +1,6 @@
+import React from 'react';
+import { Pill } from '../components/Pill';
+// Canonical weather keys the app understands
 export type WeatherKey = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'fog' | 'wind' | 'unknown';
 
 export type CurrentWeather = {
@@ -31,6 +34,67 @@ export function keyToLabel(key: WeatherKey): string {
     case 'wind': return 'Windy';
     default: return 'Weather';
   }
+}
+
+// Central color palette for weather pills/icons
+export const WEATHER_COLOR_MAP: Record<WeatherKey, string> = {
+  sunny: '#fbbf24',      // amber
+  cloudy: '#94a3b8',     // slate / gray
+  rain: '#3b82f6',       // blue
+  storm: '#6366f1',      // indigo
+  snow: '#e0f2fe',       // light sky
+  fog: '#a8b1c1',        // soft desaturated gray-blue
+  wind: '#60a5fa',       // lighter blue
+  unknown: '#94a3b8',
+};
+
+// Icon mapping (Ionicons outline set) for weather keys
+export const WEATHER_ICON_MAP: Record<WeatherKey, string> = {
+  sunny: 'sunny-outline',
+  cloudy: 'cloud-outline',
+  rain: 'rainy-outline',
+  storm: 'thunderstorm-outline',
+  snow: 'snow-outline',
+  fog: 'cloud-outline', // no dedicated fog icon in Ionicons outline set
+  wind: 'cloud-outline', // fallback
+  unknown: 'cloud-outline',
+};
+
+export interface WeatherOptionDef {
+  key: WeatherKey;
+  label: string;
+  icon: string; // Ionicons name
+}
+
+// Options the user can currently pick from when creating/editing a note
+// (we omit fog/wind/unknown for now but they are supported in displays)
+export const SELECTABLE_WEATHER_OPTIONS: WeatherOptionDef[] = (
+  ['sunny','cloudy','rain','storm','snow','fog','wind'] as WeatherKey[]
+).map(k => ({ key: k, label: keyToLabel(k), icon: WEATHER_ICON_MAP[k] }));
+
+export function getWeatherColor(key?: string, fallback?: string) {
+  if (!key) return fallback || WEATHER_COLOR_MAP.unknown;
+  return WEATHER_COLOR_MAP[(key as WeatherKey)] || fallback || WEATHER_COLOR_MAP.unknown;
+}
+
+export function getWeatherIconName(key?: string) {
+  if (!key) return WEATHER_ICON_MAP.unknown;
+  return WEATHER_ICON_MAP[(key as WeatherKey)] || WEATHER_ICON_MAP.unknown;
+}
+
+// Convenience WeatherPill component for consistent rendering
+export function WeatherPill({ weather, size = 'md' as const, label, trailing }: { weather: string; size?: 'sm' | 'md'; label?: string; trailing?: string }) {
+  const content = (label || weather) + (trailing ? ` ${trailing}` : '');
+  return React.createElement(
+    Pill,
+    {
+      variant: 'neutral',
+      size,
+      iconName: getWeatherIconName(weather) as any,
+      iconColorOverride: getWeatherColor(weather),
+    } as any,
+    content
+  );
 }
 
 export async function fetchCurrentWeather(lat: number, lon: number): Promise<CurrentWeather> {

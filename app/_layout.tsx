@@ -12,6 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AppLockProvider } from '../components/AppLockContext';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { FeatureFlagsProvider } from '../components/FeatureFlagsContext';
+import { PreferencesProvider } from '../components/PreferencesContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
 import { pushTrips, syncTripsBackground } from '../lib/sync';
 
@@ -144,9 +145,10 @@ function AppLayoutInner() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: themeColors.background }}>
+  <View style={{ flex: 1, backgroundColor: themeColors.background }}>
   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} animated />
-      <Stack screenOptions={{
+  <PreferencesProvider>
+  <Stack screenOptions={{
         headerStyle: { backgroundColor: themeColors.card },
         headerTitleStyle: { color: themeColors.text },
         headerTintColor: themeColors.primaryDark,
@@ -223,7 +225,8 @@ function AppLayoutInner() {
             </View>
           ) : null
         ) }} />
-      </Stack>
+  </Stack>
+  </PreferencesProvider>
       </View>
   );
 }

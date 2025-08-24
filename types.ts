@@ -9,6 +9,9 @@ export type Note = {
   photos?: { uri: string; caption?: string }[]; // new: support multiple photos
   location?: { lat: number; lng: number };
   locationName?: string; // human-readable label for location
+  isSeaDay?: boolean; // marks this note as a "Sea Day" (at sea, no port)
+  color?: string; // user-selected accent color for the note card
+  emoji?: string; // optional emoji reaction / marker for the note
 };
 
 export type Trip = {

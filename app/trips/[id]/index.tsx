@@ -1,401 +1,151 @@
-// Format date as DAY DD MMM YYYY, parsing YYYY-MM-DD as local date to avoid timezone shift
+// Trip Detail screen (refactored: removed FAB, added inline New Note, export button, compact Completed toggle + edit button)
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, FlatList, LayoutChangeEvent, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Pill } from '../../../components/Pill';
+import { NoteCard } from '../../../components/NoteCard';
+import { formatDateRangeWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 import { useTheme } from '../../../components/ThemeContext';
-import { exportTripJSON } from '../../../lib/exportTrip';
+import { exportTripPDF } from '../../../lib/exportTrip';
 import { getTripById } from '../../../lib/storage';
 import { Note, Trip } from '../../../types';
-function parseLocalFromString(dateStr: string | undefined): Date | null {
-  if (!dateStr) return null;
-  const ymd = String(dateStr).slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-    const [y, m, d] = ymd.split('-').map(Number);
-    return new Date(y, (m || 1) - 1, d || 1);
+
+function parseLocalFromString(dateStr: string | undefined): Date | null { if (!dateStr) return null; const ymd=String(dateStr).slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(ymd)){ const [y,m,d]=ymd.split('-').map(Number); return new Date(y,(m||1)-1,d||1);} const d=new Date(dateStr); return isNaN(d.getTime())?null:d; }
+function computeDurationDays(start?: string, end?: string): number | null { if(!start||!end) return null; const s=parseLocalFromString(start); const e=parseLocalFromString(end); if(!s||!e) return null; const MS=86400000; const days=Math.floor((e.getTime()-s.getTime())/MS)+1; return days>0?days:null; }
+
+export default function TripDetail(){
+  const { themeColors } = useTheme();
+  const { prefs } = usePreferences();
+  const { id } = useLocalSearchParams<{id:string}>();
+  const [trip,setTrip]=useState<Trip|undefined>();
+  const [loading,setLoading]=useState(true);
+  // completed toggle moved back to edit screen
+  const [showPortsModal,setShowPortsModal]=useState(false);
+  const [pendingDelete,setPendingDelete]=useState<Note|null>(null);
+  const [showUndo,setShowUndo]=useState(false);
+  const [rowHeights,setRowHeights]=useState<Record<string,number>>({});
+  const undoTimerRef=useRef<number|null>(null);
+  const insets=useSafeAreaInsets();
+  const [sortDesc,setSortDesc]=useState(false);
+
+  const sortedDays = useMemo(()=>{
+    if(!trip) return [] as Note[];
+    const copy=[...trip.days];
+    copy.sort((a,b)=> sortDesc ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date));
+    return copy;
+  },[trip,sortDesc]);
+
+  const refresh=useCallback(async()=>{ if(!id) return; setLoading(true); const t=await getTripById(id); setTrip(t||undefined); setLoading(false); },[id]);
+  useEffect(()=>{refresh();},[refresh]);
+
+  // (toggleCompleted removed – completion now edited only in edit screen)
+
+  const styles=useMemo(()=>StyleSheet.create({
+    container:{flex:1,backgroundColor:themeColors.background,paddingBottom:Math.max(12,insets.bottom)},
+    gradientHeader:{paddingTop:48,paddingBottom:28,paddingHorizontal:24,borderBottomLeftRadius:32,borderBottomRightRadius:32,alignItems:'flex-start',marginBottom:12,shadowColor:'#000',shadowOffset:{width:0,height:2},shadowOpacity:0.12,shadowRadius:8,elevation:4},
+  headerTitle:{color:'#fff',fontSize:28,fontWeight:'700',marginBottom:0,letterSpacing:0.2},
+    headerToggleBtn:{width:40,height:40,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.15)',borderWidth:1,borderColor:'rgba(255,255,255,0.35)'},
+    headerSmallBtn:{marginTop:6,width:34,height:34,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.15)',borderWidth:1,borderColor:'rgba(255,255,255,0.35)'},
+    summaryCard:{backgroundColor:themeColors.card,borderRadius:18,marginHorizontal:16,marginTop:-34,marginBottom:8,padding:14,borderWidth:2,borderColor:themeColors.primary,shadowColor:'#000',shadowOffset:{width:0,height:2},shadowOpacity:0.1,shadowRadius:6,elevation:8},
+    summaryRow:{flexDirection:'row',alignItems:'center',marginBottom:6},
+    summaryIcon:{marginRight:10},
+    summaryText:{fontSize:16,color:themeColors.text,fontWeight:'500'},
+    listContent:{paddingTop:0,paddingBottom:104+insets.bottom,paddingHorizontal:16},
+    emptyText:{marginTop:24,textAlign:'center',color:themeColors.textSecondary},
+  }),[themeColors,insets.bottom]);
+
+  const finalizeDelete=useCallback((note:Note)=>{ setTrip(prev=>prev?{...prev,days:prev.days.filter(d=>d.id!==note.id)}:prev); import('../../../lib/storage').then(m=>{ if(trip) m.upsertTrip({...trip,days:trip.days.filter(d=>d.id!==note.id)}); }).catch(()=>{}); },[trip]);
+  const handleDelete=useCallback((note:Note)=>{ if(undoTimerRef.current){clearTimeout(undoTimerRef.current);undoTimerRef.current=null;} setPendingDelete(note); finalizeDelete(note); setShowUndo(true); undoTimerRef.current=setTimeout(()=>{ setPendingDelete(null); setShowUndo(false); undoTimerRef.current=null; },5000); },[finalizeDelete]);
+  const handleUndo=useCallback(()=>{ if(!pendingDelete) return; if(undoTimerRef.current){clearTimeout(undoTimerRef.current);undoTimerRef.current=null;} const note=pendingDelete; setPendingDelete(null); setShowUndo(false); setTrip(prev=>prev?{...prev,days:[...prev.days,note].sort((a,b)=>a.date.localeCompare(b.date))}:prev); import('../../../lib/storage').then(m=>{ if(trip) m.upsertTrip({...trip,days:[...trip.days,note].sort((a,b)=>a.date.localeCompare(b.date))}); }).catch(()=>{}); },[pendingDelete,trip]);
+
+  if(loading && !trip){
+    return <View style={{flex:1,backgroundColor:themeColors.background,padding:18}}><View style={{height:140,borderRadius:32,backgroundColor:themeColors.card,marginBottom:16}}/><View style={{height:120,borderRadius:18,backgroundColor:themeColors.card,marginBottom:20}}/>{[0,1,2].map(i=> <View key={i} style={{height:100,borderRadius:12,backgroundColor:themeColors.card,marginBottom:14}}/> )}</View>;
   }
-  const d = new Date(dateStr);
-  return isNaN(d.getTime()) ? null : d;
-}
-function formatDate(dateStr: string) {
-  const d = parseLocalFromString(dateStr);
-  if (!d) return dateStr || '';
-  return d.toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function computeDurationDays(start?: string, end?: string): number | null {
-  if (!start || !end) return null;
-  const s = parseLocalFromString(start);
-  const e = parseLocalFromString(end);
-  if (!s || !e) return null;
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const days = Math.floor((e.getTime() - s.getTime()) / MS_PER_DAY) + 1; // inclusive
-  return days > 0 ? days : null;
-}
-
-export default function TripDetail() {
-  const { themeColors, colorScheme } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const [trip, setTrip] = useState<Trip | undefined>(undefined);
-  const [showActions, setShowActions] = useState(false);
-  const [fabMenuModalVisible, setFabMenuModalVisible] = useState(false);
-  const [updatingCompleted, setUpdatingCompleted] = useState(false);
-  const [showPortsModal, setShowPortsModal] = useState(false);
-  const menuOpacity = useRef(new Animated.Value(0)).current;
-  const menuTranslate = useRef(new Animated.Value(8)).current;
-  const FAB_SIZE = 56;
-  const insets = useSafeAreaInsets();
-
-  const refresh = useCallback(async () => {
-    if (!id) return;
-    const t = await getTripById(id);
-    setTrip(t);
-  }, [id]);
-
-  useEffect(() => { refresh(); }, [id, refresh]);
-
-  const toggleCompleted = async () => {
-    if (!trip) return;
-    setUpdatingCompleted(true);
-    const updated = { ...trip, completed: !trip.completed };
-    await import('../../../lib/storage').then(m => m.upsertTrip(updated));
-    setTrip(updated);
-    setUpdatingCompleted(false);
-  };
-
-  const styles = useMemo(() => StyleSheet.create({
-    container: { flex: 1, padding: 0, backgroundColor: themeColors.background },
-    gradientHeader: {
-      paddingTop: 48,
-      paddingBottom: 28,
-      paddingHorizontal: 24,
-      borderBottomLeftRadius: 32,
-      borderBottomRightRadius: 32,
-      alignItems: 'flex-start',
-      marginBottom: 12,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.12,
-      shadowRadius: 8,
-      elevation: 4,
-    },
-    headerIconBtn: {
-      position: 'absolute',
-      right: 16,
-      top: 50,
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(255,255,255,0.15)',
-      borderWidth: 1,
-      borderColor: 'rgba(255,255,255,0.35)'
-    },
-    headerTitle: {
-      color: '#fff',
-      fontSize: 28,
-      fontWeight: '700',
-      marginBottom: 4,
-      letterSpacing: 0.2,
-    },
-    headerDates: {
-      color: '#e0e7ff',
-      fontSize: 16,
-      fontWeight: '500',
-      marginBottom: 2,
-    },
-    summaryCard: {
-      backgroundColor: themeColors.card,
-      borderRadius: 18,
-      marginHorizontal: 18,
-      marginTop: -24,
-      marginBottom: 18,
-      padding: 18,
-  borderWidth: 1,
-  borderColor: themeColors.primary,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.10,
-      shadowRadius: 6,
-      elevation: 2,
-    },
-    summaryRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
-    },
-    summaryIcon: { marginRight: 10 },
-    summaryText: { fontSize: 16, color: themeColors.text, fontWeight: '500' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 },
-  btn: { backgroundColor: themeColors.primary, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2 },
-  btnAlt: { backgroundColor: themeColors.primary + '12', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, marginTop: 2, borderWidth: 1, borderColor: themeColors.primary },
-  btnText: { color: (themeColors as any).btnText || themeColors.badgeText, fontWeight: '700', fontSize: 16 },
-  btnTextAlt: { color: themeColors.primaryDark, fontWeight: '700', fontSize: 16 },
-    card: { padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10 },
-    cardTitle: { fontSize: 16, fontWeight: '600', marginBottom: 4, color: themeColors.text },
-  listContent: { paddingTop: 12, paddingBottom: 120, paddingHorizontal: 18 },
-    emptyText: { marginTop: 24, textAlign: 'center', color: themeColors.textSecondary },
-  }), [themeColors]);
-
-  if (!trip) {
-    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: themeColors.background }}><Text style={{ color: themeColors.textSecondary }}>Loading trip...</Text></View>;
-  }
+  if(!trip){ return <View style={{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:themeColors.background}}><Text style={{color:themeColors.textSecondary}}>Trip not found.</Text></View>; }
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={themeColors.cardAccentGradient as any}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradientHeader}
-      >
-        <Text style={styles.headerTitle}>{trip.title}</Text>
-        <Pressable
-          style={[styles.headerIconBtn, { right: 16, top: 16, backgroundColor: trip.completed ? themeColors.primary : 'rgba(255,255,255,0.15)' }]}
-          onPress={toggleCompleted}
-          disabled={updatingCompleted}
-          accessibilityLabel={trip.completed ? 'Mark as not completed' : 'Mark as completed'}
-        >
-          <Ionicons
-            name={trip.completed ? 'checkmark-circle' : 'ellipse-outline'}
-            size={24}
-            color={trip.completed ? themeColors.badgeText : '#fff'}
-          />
-        </Pressable>
+      <LinearGradient colors={themeColors.cardAccentGradient as any} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.gradientHeader}>
+        <View style={{flexDirection:'row',alignItems:'center',width:'100%'}}>
+          <Text style={[styles.headerTitle,{flex:1,marginRight:12}]} numberOfLines={2}>{trip.title}</Text>
+          <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
+            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Export trip" onPress={()=>exportTripPDF(trip)}>
+              <Ionicons name="download-outline" size={18} color="#fff" />
+            </Pressable>
+            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Edit trip" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/edit' as any, params:{id:trip.id}} as any)}>
+              <Ionicons name="create-outline" size={20} color="#fff" />
+            </Pressable>
+          </View>
+        </View>
       </LinearGradient>
       <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Ionicons name="calendar-outline" size={20} color={themeColors.primaryDark} style={styles.summaryIcon} />
-          <Text style={styles.summaryText}>{trip.startDate ? formatDate(trip.startDate) : '?'} → {trip.endDate ? formatDate(trip.endDate) : '?'}</Text>
+        <View style={[styles.summaryRow,{marginBottom:2}]}>          
+          <Ionicons name="calendar-outline" size={18} color={themeColors.primaryDark} style={[styles.summaryIcon,{marginRight:6}]} />
+          <Text style={[styles.summaryText,{fontSize:15}]}>{formatDateRangeWithPrefs(trip.startDate,trip.endDate,prefs)}</Text>
         </View>
-        {(() => {
-          const d = computeDurationDays(trip.startDate, trip.endDate);
-          if (!d) return null;
-          return (
-            <View style={styles.summaryRow}>
-              <Ionicons name="time-outline" size={20} color={themeColors.primaryDark} style={styles.summaryIcon} />
-              <Text style={styles.summaryText}>Duration: {d} day{d === 1 ? '' : 's'}</Text>
-            </View>
-          );
-        })()}
-        {!!trip.ship && (
-          <View style={styles.summaryRow}>
-            <Ionicons name="boat-outline" size={20} color={themeColors.primary} style={styles.summaryIcon} />
-            <Text style={styles.summaryText}>{trip.ship}</Text>
-          </View>
-        )}
-        {!!trip.ports?.length && (
-          <Pressable
-            style={styles.summaryRow}
-            onPress={() => setShowPortsModal(true)}
-            accessibilityLabel="View ports"
-          >
-            <Ionicons name="location-outline" size={20} color={themeColors.accent} style={styles.summaryIcon} />
-            <Text style={[styles.summaryText, { textDecorationLine: 'underline' }]}>{trip.ports.length} port{trip.ports.length > 1 ? 's' : ''}</Text>
-          </Pressable>
-        )}
-        <View style={styles.summaryRow}>
-          <Ionicons name="document-text-outline" size={20} color={themeColors.highlight} style={styles.summaryIcon} />
-          <Text style={styles.summaryText}>{trip.days.length} note{trip.days.length !== 1 ? 's' : ''}</Text>
-        </View>
+        {(()=>{ const d=computeDurationDays(trip.startDate,trip.endDate); const seaCount=trip.days.filter(day=>(day as any).isSeaDay).length; const cells: {key:string;icon:string;color:string;text:string;onPress?:()=>void;underline?:boolean}[]=[]; if(trip.ship) cells.push({key:'ship',icon:'boat-outline',color:themeColors.primary,text:trip.ship}); if(d) cells.push({key:'dur',icon:'time-outline',color:themeColors.primaryDark,text:`${d} day${d===1?'':'s'}`}); if(trip.ports?.length) cells.push({key:'ports',icon:'location-outline',color:themeColors.accent,text:`${trip.ports.length} port${trip.ports.length>1?'s':''}`,onPress:()=>setShowPortsModal(true),underline:true}); cells.push({key:'notes',icon:'document-text-outline',color:themeColors.highlight,text:`${trip.days.length} note${trip.days.length!==1?'s':''}`}); if(seaCount) cells.push({key:'sea',icon:'boat-outline',color:themeColors.primary,text:`${seaCount} sea day${seaCount!==1?'s':''}`}); if(cells.length>4){ const shipIdx=cells.findIndex(c=>c.key==='ship'); if(shipIdx!==-1) cells.splice(shipIdx,1);} const grid=cells.slice(0,4); if(!grid.length) return null; return <View style={{flexDirection:'row',flexWrap:'wrap',marginTop:2}}>{grid.map(it=> <Pressable key={it.key} onPress={it.onPress} disabled={!it.onPress} style={{width:'50%',flexDirection:'row',alignItems:'center',paddingVertical:4}} accessibilityLabel={it.text}><Ionicons name={it.icon as any} size={16} color={it.color} style={{marginRight:5}} /><Text style={[styles.summaryText,{fontSize:14,fontWeight:'600',color:themeColors.text,textDecorationLine:it.underline?'underline':'none'}]} numberOfLines={2}>{it.text}</Text></Pressable> )}</View>; })()}
       </View>
-
-  {trip.days.length === 0 ? (
-    <Text style={styles.emptyText}>No notes yet. Add your first one.</Text>
-      ) : (
+      <View style={{marginHorizontal:16,marginBottom:8,flexDirection:'row',alignItems:'center'}}>
+        <Text accessibilityRole="header" style={{fontSize:20,fontWeight:'700',color:themeColors.text}}>Notes</Text>
+        <View style={{flex:1,alignItems:'center'}}>
+          <Pressable accessibilityLabel="Add new note" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note/new' as any, params:{id:String(id)}} as any)} style={{flexDirection:'row',alignItems:'center',backgroundColor:themeColors.primary,paddingVertical:8,paddingHorizontal:18,borderRadius:999,shadowColor:'#000',shadowOpacity:0.15,shadowRadius:4,shadowOffset:{width:0,height:2},elevation:2}}>
+            <Ionicons name="add" size={18} color={themeColors.badgeText} />
+            <Text style={{marginLeft:6,fontSize:14,fontWeight:'700',color:themeColors.badgeText}}>New Note</Text>
+          </Pressable>
+        </View>
+        <Pressable accessibilityLabel={sortDesc? 'Sort ascending' : 'Sort descending'} onPress={()=>setSortDesc(d=>!d)} style={{flexDirection:'row',alignItems:'center',backgroundColor:themeColors.card,paddingVertical:8,paddingHorizontal:14,borderRadius:999,borderWidth:1,borderColor:themeColors.menuBorder}}>
+          <Ionicons name={sortDesc ? 'arrow-down' : 'arrow-up'} size={16} color={themeColors.text} />
+          <Text style={{marginLeft:6,fontSize:12,fontWeight:'600',color:themeColors.text}}>{sortDesc ? 'Newest' : 'Oldest'}</Text>
+        </Pressable>
+      </View>
+    {trip.days.length===0 ? <Text style={styles.emptyText}>No notes yet. Add your first one.</Text> : (
         <FlatList
-          data={trip.days}
-          keyExtractor={(d) => d.id}
-      renderItem={({ item }) => <DayItem item={item} themeColors={themeColors} colorScheme={colorScheme} tripId={String(id)} />}
+      data={sortedDays}
+          keyExtractor={d=>d.id}
+          renderItem={({item})=> (
+            <Swipeable
+              overshootRight={false}
+              overshootLeft={false}
+              renderLeftActions={(progress)=>{ const opacity=progress.interpolate({inputRange:[0,0.05,0.4,1],outputRange:[0,0.15,0.85,1],extrapolate:'clamp'}); const scale=progress.interpolate({inputRange:[0,1],outputRange:[0.9,1],extrapolate:'clamp'}); return <Animated.View style={{flexDirection:'row',alignItems:'center',opacity}}><Animated.View style={{transform:[{scale}]}}><Pressable onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note/[noteId]/edit' as any, params:{id:String(id),noteId:item.id}} as any)} accessibilityLabel={`Edit note ${item.date}`} style={{width:84,marginTop:10,height:rowHeights[item.id]||undefined,justifyContent:'center',alignItems:'center',backgroundColor:themeColors.primary,borderRadius:12,marginRight:8,shadowColor:'#000',shadowOpacity:0.15,shadowRadius:4,shadowOffset:{width:0,height:2},elevation:2}}><Ionicons name="create-outline" size={26} color={themeColors.badgeText} /><Text style={{color:themeColors.badgeText,fontSize:12,fontWeight:'700',marginTop:4}}>Edit</Text></Pressable></Animated.View></Animated.View>; }}
+              renderRightActions={(progress)=>{ const opacity=progress.interpolate({inputRange:[0,0.05,0.4,1],outputRange:[0,0.15,0.85,1],extrapolate:'clamp'}); const scale=progress.interpolate({inputRange:[0,1],outputRange:[0.9,1],extrapolate:'clamp'}); return <Animated.View style={{flexDirection:'row',alignItems:'center',opacity}}><Animated.View style={{transform:[{scale}]}}><Pressable onPress={()=>handleDelete(item)} accessibilityLabel={`Delete note ${item.date}`} style={{width:84,marginTop:10,height:rowHeights[item.id]||undefined,justifyContent:'center',alignItems:'center',backgroundColor:themeColors.danger,borderRadius:12,marginLeft:8,shadowColor:'#000',shadowOpacity:0.15,shadowRadius:4,shadowOffset:{width:0,height:2},elevation:2}}><Ionicons name="trash-outline" size={26} color={themeColors.badgeText} /><Text style={{color:themeColors.badgeText,fontSize:12,fontWeight:'700',marginTop:4}}>Delete</Text></Pressable></Animated.View></Animated.View>; }}
+            >
+              <DayItem item={item} tripId={String(id)} onLayout={(e:LayoutChangeEvent)=>{ const h=e.nativeEvent.layout.height; setRowHeights(prev=>prev[item.id]===h?prev:{...prev,[item.id]:h}); }} />
+            </Swipeable>
+          )}
           contentContainerStyle={styles.listContent}
-          onScrollBeginDrag={() => { if (showActions) setShowActions(false); }}
         />
       )}
-
-      {/* Floating bottom-left menu button (mirrors Trips tab) */}
-      {(() => {
-        const fabBottom = Math.max(12, (insets?.bottom || 0) + 20);
-
-        const openFabMenu = () => {
-          setFabMenuModalVisible(true);
-          menuOpacity.setValue(0);
-          menuTranslate.setValue(8);
-          Animated.parallel([
-            Animated.timing(menuOpacity, { toValue: 1, duration: 140, useNativeDriver: true }),
-            Animated.spring(menuTranslate, {
-              toValue: 0,
-              useNativeDriver: true,
-              damping: 14,
-              stiffness: 180,
-              mass: 0.9,
-              velocity: 0.8,
-              overshootClamping: false,
-            }),
-          ]).start();
-        };
-        const closeFabMenu = () => {
-          Animated.parallel([
-            Animated.timing(menuOpacity, { toValue: 0, duration: 120, useNativeDriver: true }),
-            Animated.spring(menuTranslate, {
-              toValue: 8,
-              useNativeDriver: true,
-              damping: 18,
-              stiffness: 220,
-              mass: 1.0,
-              velocity: 0.6,
-              overshootClamping: true,
-            }),
-          ]).start(({ finished }) => {
-            if (finished) setFabMenuModalVisible(false);
-          });
-        };
-
-        return (
-          <>
-            <Pressable
-              onPress={openFabMenu}
-              accessibilityLabel="Open actions menu"
-              style={{
-                position: 'absolute',
-                left: 20,
-                bottom: fabBottom,
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: themeColors.primary,
-                alignItems: 'center',
-                justifyContent: 'center',
-                shadowColor: '#000',
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 2 },
-                elevation: 6,
-                zIndex: 100,
-              }}
-            >
-              <Ionicons name="menu" size={28} color={themeColors.badgeText} />
+      <Modal visible={showPortsModal} transparent animationType="fade" onRequestClose={()=>setShowPortsModal(false)}>
+        <Pressable style={{flex:1,backgroundColor:'rgba(0,0,0,0.4)'}} onPress={()=>setShowPortsModal(false)} />
+        <View style={{position:'absolute',left:0,right:0,top:'30%',marginHorizontal:24,backgroundColor:themeColors.card,borderRadius:16,padding:20,alignSelf:'center',elevation:8,borderWidth:1,borderColor:themeColors.primary}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <Text style={{fontSize:18,fontWeight:'700',color:themeColors.text}}>Ports</Text>
+            <Pressable accessibilityLabel="Edit ports" onPress={()=>{ setShowPortsModal(false); router.push({pathname:'/(tabs)/trips/[id]/edit' as any, params:{id:trip.id}} as any); }} style={{paddingVertical:6,paddingHorizontal:14,borderRadius:999,backgroundColor:themeColors.primary,flexDirection:'row',alignItems:'center',gap:6}}>
+              <Ionicons name="create-outline" size={16} color={themeColors.badgeText} />
+              <Text style={{fontSize:14,fontWeight:'700',color:themeColors.badgeText}}>Edit</Text>
             </Pressable>
-
-            <Modal
-              visible={fabMenuModalVisible}
-              transparent
-              animationType="fade"
-              onRequestClose={closeFabMenu}
-            >
-              <Pressable style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)' }} onPress={closeFabMenu} />
-              <Animated.View style={{ position: 'absolute', left: 20, bottom: fabBottom + FAB_SIZE + 50, opacity: menuOpacity, transform: [{ translateY: menuTranslate }] }}>
-                <View style={{ minWidth: 200, borderRadius: 12, backgroundColor: 'transparent', padding: 8 }}>
-                  <Pressable
-                    onPress={() => { closeFabMenu(); router.push({ pathname: '/(tabs)/trips/[id]/note-new' as any, params: { id: trip.id } } as any); }}
-                    accessibilityLabel="Add note"
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 999, marginVertical: 6, backgroundColor: themeColors.primary, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }}
-                  >
-                    <Ionicons name="add-circle-outline" size={20} color={themeColors.badgeText} />
-                    <Text style={{ fontSize: 15, color: themeColors.badgeText, fontWeight: '700' }}>Add note</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => { closeFabMenu(); exportTripJSON(trip); }}
-                    accessibilityLabel="Export trip"
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 999, marginVertical: 6, backgroundColor: themeColors.primary, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }}
-                  >
-                    <Ionicons name="download-outline" size={20} color={themeColors.badgeText} />
-                    <Text style={{ fontSize: 15, color: themeColors.badgeText, fontWeight: '700' }}>Export trip</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => { closeFabMenu(); router.push({ pathname: '/(tabs)/trips/[id]/edit' as any, params: { id: trip.id } } as any); }}
-                    accessibilityLabel="Edit trip"
-                    style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 999, marginVertical: 6, backgroundColor: themeColors.primary, borderWidth: 1, borderColor: themeColors.primaryDark + '29' }}
-                  >
-                    <Ionicons name="create-outline" size={20} color={themeColors.badgeText} />
-                    <Text style={{ fontSize: 15, color: themeColors.badgeText, fontWeight: '700' }}>Edit trip</Text>
-                  </Pressable>
-                </View>
-              </Animated.View>
-            </Modal>
-      <Modal
-        visible={showPortsModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowPortsModal(false)}
-      >
-        <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }} onPress={() => setShowPortsModal(false)} />
-        <View style={{ position: 'absolute', left: 0, right: 0, top: '30%', marginHorizontal: 24, backgroundColor: themeColors.card, borderRadius: 16, padding: 20, alignSelf: 'center', elevation: 8 }}>
-          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 12, color: themeColors.text }}>Ports</Text>
-          {trip.ports && trip.ports.map((port, idx) => (
-            <Text key={idx} style={{ fontSize: 16, color: themeColors.text, marginBottom: 6 }}>{port}</Text>
-          ))}
-          <Pressable onPress={() => setShowPortsModal(false)} style={{ marginTop: 18, alignSelf: 'flex-end', padding: 8 }}>
-            <Text style={{ color: themeColors.primary, fontWeight: '700', fontSize: 16 }}>Close</Text>
-          </Pressable>
+          </View>
+          {trip.ports && trip.ports.map((port,idx)=> <Text key={idx} style={{fontSize:16,color:themeColors.text,marginBottom:6}}>{port}</Text>)}
+          <View style={{flexDirection:'row',justifyContent:'flex-end',gap:16,marginTop:10}}>
+            <Pressable accessibilityLabel="Close ports list" onPress={()=>setShowPortsModal(false)} style={{paddingVertical:8,paddingHorizontal:14}}>
+              <Text style={{color:themeColors.primary,fontWeight:'700',fontSize:16}}>Close</Text>
+            </Pressable>
+          </View>
         </View>
       </Modal>
-          </>
-        );
-      })()}
+      {showUndo && (
+        <View style={{position:'absolute',left:20,right:20,bottom:Math.max(20,insets.bottom+20),backgroundColor:themeColors.card,borderRadius:16,paddingHorizontal:18,paddingVertical:14,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderWidth:1,borderColor:themeColors.menuBorder,shadowColor:'#000',shadowOpacity:0.25,shadowRadius:8,shadowOffset:{width:0,height:2},elevation:6}}>
+          <Text style={{color:themeColors.text,fontSize:14,fontWeight:'600'}}>Note deleted</Text>
+          <Pressable accessibilityLabel="Undo delete" onPress={handleUndo} style={{paddingHorizontal:8,paddingVertical:6}}>
+            <Text style={{color:themeColors.primaryDark,fontWeight:'700',fontSize:14}}>UNDO</Text>
+          </Pressable>
+        </View>
+      )}
     </View>
   );
 }
 
-function DayItem({ item, themeColors, colorScheme, tripId }: { item: Note, themeColors: any, colorScheme: 'light' | 'dark', tripId: string }) {
-  const thumbUri = item.photos?.[0]?.uri || item.photoUri;
-  return (
-    <Pressable
-  onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/note/[noteId]' as any, params: { id: tripId, noteId: item.id } } as any)}
-  style={{ padding: 12, borderRadius: 12, backgroundColor: themeColors.card, marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: themeColors.primary }}
-      accessibilityLabel={`Edit note ${item.date}`}
-    >
-      {thumbUri ? (
-        <Image source={{ uri: thumbUri }} style={{ width: 64, height: 64, borderRadius: 8 }} />
-      ) : (
-        <View
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 8,
-            backgroundColor: themeColors.card,
-            borderWidth: 1,
-            borderColor: themeColors.primary,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          accessibilityLabel="No photo yet"
-        >
-          <Ionicons name="image-outline" size={24} color={themeColors.textSecondary} />
-        </View>
-      )}
-      <View style={{ flex: 1 }}>
-        {!!item.title && <Text numberOfLines={1} style={{ fontSize: 16, color: themeColors.text, fontWeight: '600' }}>{item.title}</Text>}
-        <Text style={{ fontWeight: '600', color: themeColors.text, marginTop: item.title ? 2 : 0 }}>{item.date}</Text>
-        {!!item.description && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.description}</Text>}
-        {!!item.notes && <Text numberOfLines={2} style={{ color: themeColors.textSecondary, marginTop: 2 }}>{item.notes}</Text>}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap' }}>
-          {!!item.weather && (
-            <Pill variant="neutral" iconName={(item.weather + '-outline') as any}>
-              {item.weather}
-            </Pill>
-          )}
-          {!!(item.locationName || item.location) && (
-            <Pill variant="success" iconName="location-outline">
-              {(() => {
-                const label = item.locationName || '';
-                if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-                const parts = label.split(',').map(p => p.trim()).filter(Boolean);
-                if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
-                return label || 'Location added';
-              })()}
-            </Pill>
-          )}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
+function DayItem({item,tripId,onLayout}:{item:Note;tripId:string;onLayout?:(e:any)=>void}){ return <NoteCard note={item} onLayout={onLayout} onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note/[noteId]' as any, params:{id:tripId,noteId:item.id}} as any)} thumbSize={64} compact />; }

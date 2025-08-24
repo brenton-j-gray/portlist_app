@@ -1,15 +1,19 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Modal, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Modal, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../components/AuthContext';
+import { usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
 import { apiGetProfile, apiSaveProfile } from '../../lib/api';
 
 export default function ProfileScreen() {
   const { themeColors } = useTheme();
   const { refreshProfile, userAvatar, setUserAvatar } = useAuth();
+  const insets = useSafeAreaInsets();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -21,6 +25,15 @@ export default function ProfileScreen() {
   const [imgScale, setImgScale] = useState(1);
   const [imgOffset, setImgOffset] = useState({ x: 0, y: 0 });
   const [origSize, setOrigSize] = useState<{ w: number; h: number } | null>(null);
+  // Preference state
+  const [timeZone, setTimeZone] = useState('');
+  const [localePref, setLocalePref] = useState('');
+  const [tempUnit, setTempUnit] = useState<'C' | 'F'>('C');
+  const [distanceUnit, setDistanceUnit] = useState<'km' | 'mi'>('km');
+  const [windUnit, setWindUnit] = useState<'knots' | 'mph'>('knots');
+  const [defaultMapTypePref, setDefaultMapTypePref] = useState<'standard' | 'hybrid'>('standard');
+  const [defaultTripsSort, setDefaultTripsSort] = useState<'created' | 'title' | 'startDate'>('created');
+  const { reload: reloadPrefs } = usePreferences();
   const pan = useRef({ x: 0, y: 0 }).current as { x: number; y: number };
   const responder = useRef(
     PanResponder.create({
@@ -56,23 +69,55 @@ export default function ProfileScreen() {
       } catch {
         // ignore if not logged in or network error
       }
+      // Load preferences (ignore errors)
+      try {
+        const [tz, loc, tU, dU, wU, mapT, tripSort] = await Promise.all([
+          AsyncStorage.getItem('pref_time_zone_v1'),
+          AsyncStorage.getItem('pref_locale_v1'),
+          AsyncStorage.getItem('pref_unit_temp_v1'),
+          AsyncStorage.getItem('pref_unit_distance_v1'),
+          AsyncStorage.getItem('pref_unit_wind_v1'),
+          AsyncStorage.getItem('pref_default_map_type_v1'),
+          AsyncStorage.getItem('pref_trips_sort_v1'),
+        ]);
+        if (tz) setTimeZone(tz); else {
+          try { const sysTz = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().timeZone; if (sysTz) setTimeZone(sysTz); } catch {}
+        }
+        if (loc) setLocalePref(loc); else {
+          try { const sysLoc = (Intl as any)?.DateTimeFormat?.().resolvedOptions?.().locale; if (sysLoc) setLocalePref(sysLoc); } catch {}
+        }
+        if (tU === 'C' || tU === 'F') setTempUnit(tU);
+        if (dU === 'km' || dU === 'mi') setDistanceUnit(dU);
+        if (wU === 'knots' || wU === 'mph') setWindUnit(wU);
+        if (mapT === 'standard' || mapT === 'hybrid') setDefaultMapTypePref(mapT);
+        if (tripSort === 'created' || tripSort === 'title' || tripSort === 'startDate') setDefaultTripsSort(tripSort);
+  } catch {}
+  // Reload global preferences so new values take effect immediately
+  reloadPrefs();
     })();
-  }, []);
+  }, [reloadPrefs]);
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
-    input: { borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 12, marginBottom: 10 },
+  input: { flex: 1, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, padding: 12 },
     btn: { backgroundColor: themeColors.primary, padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 4 },
     btnText: { color: 'white', fontWeight: '700' },
-  avatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: themeColors.menuBorder },
-  pickBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
+  fieldRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, textAlign: 'right' },
+  fieldRowTopAlign: { alignItems: 'flex-start', paddingTop: 0 },
+  label: { width: 65, fontSize: 13, fontWeight: '600', color: themeColors.textSecondary, paddingTop: 0, textAlign: 'right' },
+  avatarRow: { alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  avatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: themeColors.menuBorder },
+  pickBtn: { marginTop: 6, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 12, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
   pickBtnText: { color: themeColors.primaryDark },
   modalWrap: { flex: 1, backgroundColor: themeColors.background },
   cropHeader: { padding: 12, borderBottomWidth: 1, borderBottomColor: themeColors.menuBorder, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     cropArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   circleMask: { position: 'absolute', width: frameSize, height: frameSize, borderRadius: frameSize/2, borderWidth: 2, borderColor: themeColors.primary },
   toolbar: { padding: 12, borderTopWidth: 1, borderTopColor: themeColors.menuBorder },
+  prefHeader: { marginTop: 4, marginBottom: 6, fontSize: 16, fontWeight: '700', color: themeColors.text },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, flex: 1 },
+  chip: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
+  chipActive: { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' },
   }), [themeColors, frameSize]);
 
   async function onSave() {
@@ -86,6 +131,18 @@ export default function ProfileScreen() {
         bio: bio.trim(),
       };
       await apiSaveProfile(payload);
+      // Persist preferences locally
+      try {
+        await Promise.all([
+          AsyncStorage.setItem('pref_time_zone_v1', timeZone.trim()),
+          AsyncStorage.setItem('pref_locale_v1', localePref.trim()),
+          AsyncStorage.setItem('pref_unit_temp_v1', tempUnit),
+          AsyncStorage.setItem('pref_unit_distance_v1', distanceUnit),
+          AsyncStorage.setItem('pref_unit_wind_v1', windUnit),
+          AsyncStorage.setItem('pref_default_map_type_v1', defaultMapTypePref),
+          AsyncStorage.setItem('pref_trips_sort_v1', defaultTripsSort),
+        ]);
+      } catch {}
       // Refresh Auth header/userName immediately
       await refreshProfile();
   // Return to Settings tab after a successful save
@@ -158,18 +215,93 @@ export default function ProfileScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: Math.max(40, (insets?.bottom || 0) + 32) }}
+      keyboardShouldPersistTaps="handled"
+    >
   {/* Header already renders the title */}
   <View style={styles.avatarRow}>
     <Image source={userAvatar ? { uri: userAvatar } : undefined} style={styles.avatar} />
-    <Pressable onPress={pickImage} style={styles.pickBtn}>
+    <Pressable onPress={pickImage} style={styles.pickBtn} accessibilityLabel="Change profile photo">
       <Text style={styles.pickBtnText}>Change photo</Text>
     </Pressable>
   </View>
-  <TextInput placeholder="First name" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={firstName} onChangeText={setFirstName} />
-  <TextInput placeholder="Last name" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={lastName} onChangeText={setLastName} />
-  <TextInput autoCapitalize="none" placeholder="Public username" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={username} onChangeText={setUsername} />
-  <TextInput placeholder="Bio" placeholderTextColor={themeColors.textSecondary} style={[styles.input, { height: 120 }]} multiline value={bio} onChangeText={setBio} />
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>First Name</Text>
+    <TextInput placeholder="First name" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={firstName} onChangeText={setFirstName} returnKeyType="next" />
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Last Name</Text>
+    <TextInput placeholder="Last name" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={lastName} onChangeText={setLastName} returnKeyType="next" />
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Username</Text>
+    <TextInput autoCapitalize="none" placeholder="Public username" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={username} onChangeText={setUsername} autoCorrect={false} returnKeyType="next" />
+  </View>
+  <View style={[styles.fieldRow, styles.fieldRowTopAlign]}>
+    <Text style={styles.label}>Bio</Text>
+    <TextInput placeholder="Bio" placeholderTextColor={themeColors.textSecondary} style={[styles.input, { height: 120, textAlignVertical: 'top' }]} multiline value={bio} onChangeText={setBio} />
+  </View>
+  <Text style={styles.prefHeader}>Preferences</Text>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Time Zone</Text>
+    <TextInput placeholder="e.g. America/New_York" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={timeZone} onChangeText={setTimeZone} autoCapitalize="none" />
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Locale</Text>
+    <TextInput placeholder="e.g. en-US" placeholderTextColor={themeColors.textSecondary} style={styles.input} value={localePref} onChangeText={setLocalePref} autoCapitalize="none" />
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Temp</Text>
+    <View style={styles.chipRow}>
+      {(['C','F'] as const).map(u => (
+        <Pressable key={u} onPress={() => setTempUnit(u)} style={[styles.chip, tempUnit===u && styles.chipActive]} accessibilityLabel={`Temperature unit ${u}`}>
+          <Text style={{ color: tempUnit===u ? themeColors.primaryDark : themeColors.textSecondary, fontWeight: '600' }}>{u==='C'?'°C':'°F'}</Text>
+        </Pressable>
+      ))}
+    </View>
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Distance</Text>
+    <View style={styles.chipRow}>
+      {(['km','mi'] as const).map(u => (
+        <Pressable key={u} onPress={() => setDistanceUnit(u)} style={[styles.chip, distanceUnit===u && styles.chipActive]} accessibilityLabel={`Distance unit ${u}`}>
+          <Text style={{ color: distanceUnit===u ? themeColors.primaryDark : themeColors.textSecondary, fontWeight: '600' }}>{u}</Text>
+        </Pressable>
+      ))}
+    </View>
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Wind</Text>
+    <View style={styles.chipRow}>
+      {(['knots','mph'] as const).map(u => (
+        <Pressable key={u} onPress={() => setWindUnit(u)} style={[styles.chip, windUnit===u && styles.chipActive]} accessibilityLabel={`Wind unit ${u}`}>
+          <Text style={{ color: windUnit===u ? themeColors.primaryDark : themeColors.textSecondary, fontWeight: '600' }}>{u}</Text>
+        </Pressable>
+      ))}
+    </View>
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Map</Text>
+    <View style={styles.chipRow}>
+      {(['standard','hybrid'] as const).map(t => (
+        <Pressable key={t} onPress={() => setDefaultMapTypePref(t)} style={[styles.chip, defaultMapTypePref===t && styles.chipActive]} accessibilityLabel={`Default map type ${t}`}>
+          <Text style={{ color: defaultMapTypePref===t ? themeColors.primaryDark : themeColors.textSecondary, fontWeight: '600' }}>{t==='standard'?'Standard':'Satellite'}</Text>
+        </Pressable>
+      ))}
+    </View>
+  </View>
+  <View style={styles.fieldRow}>
+    <Text style={styles.label}>Trip Sort</Text>
+    <View style={styles.chipRow}>
+      {(['created','title','startDate'] as const).map(s => (
+        <Pressable key={s} onPress={() => setDefaultTripsSort(s)} style={[styles.chip, defaultTripsSort===s && styles.chipActive]} accessibilityLabel={`Default trip sort ${s}`}>
+          <Text style={{ color: defaultTripsSort===s ? themeColors.primaryDark : themeColors.textSecondary, fontWeight: '600' }}>{s==='created'?'Recent':(s==='title'?'Title':'Start')}</Text>
+        </Pressable>
+      ))}
+    </View>
+  </View>
       <Pressable onPress={onSave} style={styles.btn} disabled={busy}>
         <Text style={styles.btnText}>{busy ? 'Saving…' : 'Save'}</Text>
       </Pressable>
@@ -220,6 +352,6 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+  </ScrollView>
   );
 }

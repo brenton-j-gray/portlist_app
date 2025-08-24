@@ -2,14 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../../components/AuthContext';
 import { useFeatureFlags } from '../../components/FeatureFlagsContext';
+import { NoteCard, NoteCardSkeleton } from '../../components/NoteCard';
 import { Pill } from '../../components/Pill';
+import { formatDateWithPrefs, formatTemperature, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
 import { shortLocationLabel } from '../../lib/location';
 import { getTrips } from '../../lib/storage';
-import { fetchCurrentWeather, keyToLabel, type WeatherKey } from '../../lib/weather';
+import { fetchCurrentWeather, keyToLabel, WeatherPill, type WeatherKey } from '../../lib/weather';
 import type { Note, Trip } from '../../types';
 
 export default function HomeScreen() {
@@ -125,6 +127,7 @@ export default function HomeScreen() {
     })();
   }, [flags.weather]);
 
+  const { prefs } = usePreferences();
   const hour = new Date().getHours();
   const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
   const displayName = (userName || '').trim();
@@ -141,36 +144,17 @@ export default function HomeScreen() {
         </View>
       ) : (
         <View style={styles.infoCard}>
-          {flags.weather && (
           <Ionicons
-            name={(
-              weatherKey === 'sunny' ? 'sunny-outline' :
-              weatherKey === 'cloudy' || weatherKey === 'fog' ? 'cloud-outline' :
-              weatherKey === 'rain' ? 'rainy-outline' :
-              weatherKey === 'storm' ? 'thunderstorm-outline' :
-              weatherKey === 'snow' ? 'snow-outline' :
-              'partly-sunny-outline'
-            ) as any}
-            size={18}
+            name="calendar-outline"
+            size={20}
             color={themeColors.primaryDark}
-          />)}
+            accessibilityLabel="Today"
+          />
           <View style={{ flex: 1 }}>
-            <Text style={styles.infoPrimary}>{dateStr || formatWeekdayDDMonthYYYY(new Date())}</Text>
+            <Text style={styles.infoPrimary}>{dateStr || formatDateWithPrefs(new Date().toISOString(), prefs, { weekday: 'long', month: 'short', day: '2-digit', year: 'numeric' })}</Text>
             <View style={styles.infoRow}>
               {flags.weather && ((weatherKey && weatherKey !== 'unknown') || tempF != null) ? (
-                <Pill
-                  variant="neutral"
-                  iconName={(
-                    weatherKey === 'sunny' ? 'sunny-outline' :
-                    weatherKey === 'cloudy' || weatherKey === 'fog' ? 'cloud-outline' :
-                    weatherKey === 'rain' ? 'rainy-outline' :
-                    weatherKey === 'storm' ? 'thunderstorm-outline' :
-                    weatherKey === 'snow' ? 'snow-outline' :
-                    'partly-sunny-outline'
-                  ) as any}
-                >
-                  {keyToLabel(weatherKey)}{tempF != null ? ` • ${tempF}°F` : ''}
-                </Pill>
+                <WeatherPill weather={weatherKey} size="md" label={keyToLabel(weatherKey)} trailing={typeof tempF === 'number' ? `• ${formatTemperature(((tempF - 32) * 5)/9, prefs, { withUnit: true, decimals: 0 })}` : undefined} />
               ) : null}
               {flags.weather && !!whereText && (
                 <Pill variant="success" iconName="location-outline">
@@ -183,50 +167,27 @@ export default function HomeScreen() {
       )}
       <Text style={styles.sectionTitle}>Recent highlights</Text>
       {loading ? (
-        <Text style={styles.body}>Loading…</Text>
+        <>
+          <NoteCardSkeleton thumbSize={56} lines={1} />
+          <NoteCardSkeleton thumbSize={56} lines={2} />
+          <NoteCardSkeleton thumbSize={56} lines={1} />
+        </>
       ) : highlights.length === 0 ? (
   <Text style={styles.body}>No notes yet. Create one from the Trips tab.</Text>
       ) : (
         highlights.map((h, idx) => (
-          <Pressable
+          <NoteCard
             key={`${h.tripId}_${h.log.id}_${idx}`}
-            style={styles.card}
+            note={h.log}
+            thumbSize={56}
             onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/note/[noteId]' as any, params: { id: h.tripId, noteId: h.log.id } } as any)}
-            accessibilityLabel={`Open note ${h.log.title || h.log.date}`}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            {h.log.photos && h.log.photos.length > 0 ? (
-              <Image source={{ uri: h.log.photos[0].uri }} style={styles.thumb} />
-            ) : (
-              <View style={[styles.thumb, { alignItems: 'center', justifyContent: 'center' }]} accessibilityLabel="No photo yet">
-                <Ionicons name="image-outline" size={22} color={themeColors.textSecondary} />
-              </View>
-            )}
-            <View style={styles.cardTextWrap}>
-              <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">{h.log.title || h.log.locationName || 'Note'}</Text>
-              <Text style={styles.cardSub} numberOfLines={1} ellipsizeMode="tail">{formatWeekdayDDMonthYYYY(new Date(h.log.date))} • {h.tripTitle}</Text>
-              <View style={styles.tagRow}>
-                {!!h.log.weather && (
-                  <Pill variant="neutral" iconName={(h.log.weather + '-outline') as any}>
-                    {h.log.weather}
-                  </Pill>
-                )}
-                {!!(h.log.locationName || h.log.location) && (
-                  <Pill variant="success" iconName="location-outline">
-                    {(() => {
-                      const label = h.log.locationName || '';
-                      // If we already stored short format like "City, CC", show as-is
-                      if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-                      // Otherwise, try to shorten "City, Region, Country" -> "City, Country"
-                      const parts = label.split(',').map(p => p.trim()).filter(Boolean);
-                      if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
-                      return label || 'Location added';
-                    })()}
-                  </Pill>
-                )}
-              </View>
-            </View>
-          </Pressable>
+            subtitleElement={
+              <Text style={{ fontSize: 12, color: themeColors.textSecondary, marginTop: 2 }} numberOfLines={1} ellipsizeMode="tail">
+                {formatDateWithPrefs(h.log.date, prefs, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} • {h.tripTitle}
+              </Text>
+            }
+            style={{ marginTop: 12 }}
+          />
         ))
       )}
     </ScrollView>

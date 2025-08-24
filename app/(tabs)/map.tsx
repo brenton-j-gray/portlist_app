@@ -1,148 +1,79 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFeatureFlags } from '../../components/FeatureFlagsContext';
+import { formatDateWithPrefs, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
-// Removed advanced route computation; simple straight polylines only
 import { loadPortsCache, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort } from '../../lib/ports';
-import { getTrips } from '../../lib/storage';
+import { getTrips, uid, upsertTrip } from '../../lib/storage';
 import type { Trip } from '../../types';
 
 export default function MapScreen() {
   const { themeColors, colorScheme } = useTheme();
+  const { prefs, setPref } = usePreferences();
+  const insets = useSafeAreaInsets();
   const { flags } = useFeatureFlags();
+  const routeColor = useMemo(() => (colorScheme === 'dark' ? themeColors.highlight : themeColors.accent), [colorScheme, themeColors]);
+  const ROUTE_STROKE_WIDTH = 3;
+  const ARROW_HEIGHT = 13;
   const [trips, setTrips] = useState<Trip[]>([]);
   const mapRef = useRef<MapView | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
   const REGION_KEY = 'map_last_region_v1';
   const [portCache, setPortCache] = useState<PortEntry[]>([]);
-  const [pendingPorts, setPendingPorts] = useState<string[]>([]); // ports needing online lookup
+  const [pendingPorts, setPendingPorts] = useState<string[]>([]);
+  const [routesVisible, setRoutesVisible] = useState(true);
+  const [mapType, setMapType] = useState<'standard' | 'hybrid'>(prefs.defaultMapType);
+  useEffect(() => { setMapType(prefs.defaultMapType); }, [prefs.defaultMapType]);
+  const [addLocationModalVisible, setAddLocationModalVisible] = useState(false);
+  const [pendingCoord, setPendingCoord] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pendingPlaceName, setPendingPlaceName] = useState<string | null>(null);
+  const [addingTripId, setAddingTripId] = useState<string | null>(null);
+  const didRestoreInitialRegion = useRef(false);
 
   const styles = useMemo(() => StyleSheet.create({
-    container: { flex: 1, backgroundColor: themeColors.background },
+    container: { flex: 1, backgroundColor: themeColors.background, paddingBottom: Math.max(12, insets?.bottom || 0) },
     map: { flex: 1 },
     empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     emptyText: { color: themeColors.textSecondary },
-    overlay: {
-      position: 'absolute', top: 10, left: 10, right: 10,
-      backgroundColor: themeColors.card, borderColor: themeColors.menuBorder, borderWidth: 1,
-      borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
-      flexDirection: 'column',
-    },
-    overlayTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-    overlayText: { color: themeColors.text },
-    overlayChip: {
-      paddingVertical: 6, paddingHorizontal: 12, borderRadius: 999,
-      backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder,
-    },
+    overlay: { position: 'absolute', top: 8, left: 8, backgroundColor: themeColors.card, borderColor: themeColors.menuBorder, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'column', maxWidth: 300 },
+    overlayTopRow: { flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'flex-start' },
+    overlayFilterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    legendCard: { position: 'absolute', top: 8, right: 8, backgroundColor: themeColors.card, borderColor: themeColors.menuBorder, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'column', alignItems: 'flex-start' },
+    legendText: { color: themeColors.text, fontWeight: '600', fontSize: 12 },
+    overlayChip: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder },
     overlayChipActive: { backgroundColor: themeColors.primary + '22', borderColor: themeColors.primary },
-    overlayChipText: { color: themeColors.text, fontWeight: '600' },
-    calloutBubble: {
-      maxWidth: 240,
-      borderRadius: 10,
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      borderWidth: 1,
-      backgroundColor: colorScheme === 'dark' ? '#0f1820' : '#FFFFFF',
-      borderColor: colorScheme === 'dark' ? '#1e2c36' : '#e2e8f0',
-      shadowColor: '#000',
-      shadowOpacity: 0.35,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 5,
-    },
-    calloutTitle: {
-      fontWeight: '700',
-      fontSize: 15,
-      marginBottom: 2,
-      color: colorScheme === 'dark' ? '#FFFFFF' : '#111111',
-    },
-    calloutSubtitle: {
-      fontSize: 13,
-      color: colorScheme === 'dark' ? '#b8c5cc' : '#333333',
-    },
-    calloutAction: {
-      fontSize: 13,
-      fontWeight: '600',
-      marginTop: 8,
-      color: themeColors.primary,
-    },
-  }), [themeColors, colorScheme]);
+    overlayChipText: { color: themeColors.text, fontWeight: '600', fontSize: 12 },
+    calloutBubble: { maxWidth: 240, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, backgroundColor: colorScheme === 'dark' ? '#0f1820' : '#FFFFFF', borderColor: colorScheme === 'dark' ? '#1e2c36' : '#e2e8f0', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+    calloutTitle: { fontWeight: '700', fontSize: 15, marginBottom: 2, color: colorScheme === 'dark' ? '#FFFFFF' : '#111111' },
+    calloutSubtitle: { fontSize: 13, color: colorScheme === 'dark' ? '#b8c5cc' : '#333333' },
+    calloutAction: { fontSize: 13, fontWeight: '600', marginTop: 8, color: themeColors.primary },
+  }), [themeColors, colorScheme, insets?.bottom]);
 
   const refresh = useCallback(async () => {
-    const [t, cache] = await Promise.all([
-      getTrips(),
-      loadPortsCache(),
-    ]);
-    setTrips(t);
-    setPortCache(cache);
+    const [t, cache] = await Promise.all([getTrips(), loadPortsCache()]);
+    setTrips(t); setPortCache(cache);
   }, []);
-
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
-  // State/memos used by UI must be declared before any conditional returns
-  // Category filter matches Trips screen: in progress, upcoming, completed, all
   const [category, setCategory] = useState<'inprogress' | 'upcoming' | 'completed' | 'all'>('all');
-  // Persist/restore category state
-  useEffect(() => {
-    (async () => {
-      try {
-        const cat = await AsyncStorage.getItem('map_filter_category_v1');
-        if (cat === 'inprogress' || cat === 'upcoming' || cat === 'completed' || cat === 'all') setCategory(cat);
-      } catch {}
-    })();
-  }, []);
-  useEffect(() => {
-    (async () => { try { await AsyncStorage.setItem('map_filter_category_v1', category); } catch {} })();
-  }, [category]);
+  useEffect(() => { (async () => { try { const cat = await AsyncStorage.getItem('map_filter_category_v1'); if (cat === 'inprogress' || cat === 'upcoming' || cat === 'completed' || cat === 'all') setCategory(cat); } catch {} })(); }, []);
+  useEffect(() => { (async () => { try { await AsyncStorage.setItem('map_filter_category_v1', category); } catch {} })(); }, [category]);
 
-  // Match logic from Trips screen
   function parseLocalYmd(s: string): Date { const [y, m, d] = s.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); }
   function startOfToday(): Date { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
-  function isTripCompleted(t: Trip) {
-    if (t.completed) return true;
-    if (!t.endDate) return false;
-    const endTs = parseLocalYmd(t.endDate).getTime();
-    return endTs < startOfToday().getTime();
-  }
-  function isTripInProgress(t: Trip) {
-    if (t.completed) return false;
-    if (!t.startDate) return false;
-    const today = startOfToday().getTime();
-    const startTs = parseLocalYmd(t.startDate).getTime();
-    const hasEnd = !!t.endDate;
-    const endTs = hasEnd ? parseLocalYmd(t.endDate as string).getTime() : undefined;
-    if (today < startTs) return false;
-    if (typeof endTs === 'number' && today > endTs) return false;
-    return true;
-  }
+  function isTripCompleted(t: Trip) { if (t.completed) return true; if (!t.endDate) return false; return parseLocalYmd(t.endDate).getTime() < startOfToday().getTime(); }
+  function isTripInProgress(t: Trip) { if (t.completed || !t.startDate) return false; const today = startOfToday().getTime(); const startTs = parseLocalYmd(t.startDate).getTime(); const endTs = t.endDate ? parseLocalYmd(t.endDate).getTime() : undefined; if (today < startTs) return false; if (typeof endTs === 'number' && today > endTs) return false; return true; }
 
   const mapDisabled = !flags.maps;
 
-  // Compute initial region (fallback) and restore last camera
   const initial: Region = useMemo(() => ({ latitude: 20, longitude: 0, latitudeDelta: 80, longitudeDelta: 80 }), []);
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem(REGION_KEY);
-        if (!mounted) return;
-        if (saved) {
-          const r = JSON.parse(saved) as Region;
-          setRegion(prev => prev ?? r);
-          if (mapRef.current) {
-            requestAnimationFrame(() => mapRef.current?.animateToRegion(r, 0));
-          }
-          return;
-        }
-      } catch {}
-      if (mounted && !region) setRegion(initial);
-    })();
-    return () => { mounted = false; };
-  }, [REGION_KEY, initial, region]);
+  useEffect(() => { let mounted = true; (async () => { if (didRestoreInitialRegion.current) return; try { const saved = await AsyncStorage.getItem(REGION_KEY); if (!mounted) return; if (saved) { const r = JSON.parse(saved) as Region; setRegion(prev => prev ?? r); setTimeout(() => { if (!didRestoreInitialRegion.current) { mapRef.current?.animateToRegion(r, 0); didRestoreInitialRegion.current = true; } }, 0); } else { if (mounted && !region) { setRegion(initial); didRestoreInitialRegion.current = true; } } } catch {} })(); return () => { mounted = false; }; }, [REGION_KEY, initial, region]);
 
   let filteredTrips = trips as Trip[];
   if (category === 'completed') filteredTrips = trips.filter(isTripCompleted);
@@ -153,45 +84,18 @@ export default function MapScreen() {
     const items: { key: string; lat: number; lng: number; title: string; subtitle?: string; tripId: string; noteId: string }[] = [];
     for (const trip of filteredTrips) {
       for (const d of trip.days) {
-        const loc = d.location;
-        if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-          const when = d.date ? new Date(d.date).toLocaleDateString() : '';
-          items.push({
-            key: `${trip.id}_${d.id}`,
-            lat: loc.lat,
-            lng: loc.lng,
-            title: d.title || d.locationName || 'Note',
-            subtitle: when,
-            tripId: trip.id,
-            noteId: d.id,
-          });
+        const loc = d.location; if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+          const when = d.date ? formatDateWithPrefs(d.date, prefs, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+          items.push({ key: `${trip.id}_${d.id}`, lat: loc.lat, lng: loc.lng, title: d.title || d.locationName || 'Note', subtitle: when, tripId: trip.id, noteId: d.id });
         }
       }
     }
     return items;
-  }, [filteredTrips]);
+  }, [filteredTrips, prefs]);
 
-  // Clustering
   type MarkerPoint = typeof markers[number];
   type Cluster = { key: string; lat: number; lng: number; count: number; children: MarkerPoint[] };
-  // Adjust thresholds based on zoom level; smaller buckets when zoomed in
-  function computeThresholds(r: Region) {
-    // Derive a simple zoom band from latitudeDelta
-    const d = r.latitudeDelta;
-    let div = 22; // default medium zoom
-    if (d > 60) div = 10; // far out
-    else if (d > 30) div = 14;
-    else if (d > 15) div = 18;
-    else if (d > 8) div = 22;
-    else if (d > 4) div = 26;
-    else div = 32; // very zoomed in
-    const latThresh = Math.max(d / div, 0.005);
-    // Adjust longitude scale by latitude
-    const rad = (r.latitude * Math.PI) / 180;
-    const lngScale = Math.max(Math.cos(rad), 0.2);
-    const lngThresh = Math.max(r.longitudeDelta / div * lngScale, 0.005);
-    return { latThresh, lngThresh };
-  }
+  function computeThresholds(r: Region) { const d = r.latitudeDelta; let div = 22; if (d > 60) div = 10; else if (d > 30) div = 14; else if (d > 15) div = 18; else if (d > 8) div = 22; else if (d > 4) div = 26; else div = 32; const latThresh = Math.max(d / div, 0.005); const rad = (r.latitude * Math.PI) / 180; const lngScale = Math.max(Math.cos(rad), 0.2); const lngThresh = Math.max(r.longitudeDelta / div * lngScale, 0.005); return { latThresh, lngThresh }; }
 
   const clusters = useMemo(() => {
     if (!region) return markers.map(m => ({ type: 'point' as const, point: m }));
@@ -199,25 +103,10 @@ export default function MapScreen() {
     const assigned = new Set<string>();
     const out: ({ type: 'point'; point: MarkerPoint } | { type: 'cluster'; cluster: Cluster })[] = [];
     for (let i = 0; i < markers.length; i++) {
-      const m = markers[i];
-      if (assigned.has(m.key)) continue;
-      const bucket: MarkerPoint[] = [m];
-      assigned.add(m.key);
-      for (let j = i + 1; j < markers.length; j++) {
-        const n = markers[j];
-        if (assigned.has(n.key)) continue;
-        if (Math.abs(m.lat - n.lat) <= latThresh && Math.abs(m.lng - n.lng) <= lngThresh) {
-          bucket.push(n);
-          assigned.add(n.key);
-        }
-      }
-      if (bucket.length === 1) {
-        out.push({ type: 'point', point: m });
-      } else {
-        const avgLat = bucket.reduce((s, p) => s + p.lat, 0) / bucket.length;
-        const avgLng = bucket.reduce((s, p) => s + p.lng, 0) / bucket.length;
-        out.push({ type: 'cluster', cluster: { key: `c_${m.key}`, lat: avgLat, lng: avgLng, count: bucket.length, children: bucket } });
-      }
+      const m = markers[i]; if (assigned.has(m.key)) continue; const bucket: MarkerPoint[] = [m]; assigned.add(m.key);
+      for (let j = i + 1; j < markers.length; j++) { const n = markers[j]; if (assigned.has(n.key)) continue; if (Math.abs(m.lat - n.lat) <= latThresh && Math.abs(m.lng - n.lng) <= lngThresh) { bucket.push(n); assigned.add(n.key); } }
+      if (bucket.length === 1) out.push({ type: 'point', point: m });
+      else { const avgLat = bucket.reduce((s, p) => s + p.lat, 0) / bucket.length; const avgLng = bucket.reduce((s, p) => s + p.lng, 0) / bucket.length; out.push({ type: 'cluster', cluster: { key: `c_${m.key}`, lat: avgLat, lng: avgLng, count: bucket.length, children: bucket } }); }
     }
     return out;
   }, [markers, region]);
@@ -236,222 +125,265 @@ export default function MapScreen() {
   };
 
   const mapStyleLight = useMemo(() => ([
-    { elementType: 'geometry', stylers: [{ color: '#ebe3cd' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#523735' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#f5f1e6' }] },
-    { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: '#b9d3c2' }] },
+    { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: '#8fc9ff' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#dadada' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#5b5b5b' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#d9f2d9' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#f3f5f7' }] },
+    { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#646464' }] },
   ] as any), []);
   const mapStyleDark = useMemo(() => ([
-    { elementType: 'geometry', stylers: [{ color: '#1f1f1f' }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: '#8f8f8f' }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a1a' }] },
-    { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: '#0b3d4f' }] },
-    { featureType: 'poi', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#000000' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#c7d2d7' }] },
+    { featureType: 'water', elementType: 'geometry.fill', stylers: [{ color: '#082d3b' }] },
+    { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#1c2224' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#242a2d' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1e402d' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#303437' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3a3e41' }] },
+    { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#b3bcc1' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#b0b9be' }] },
   ] as any), []);
 
-  // We ship with a lightweight manual clustering implementation by default.
-
-  // Planned ports and cruise line paths built from trip.ports matched to note locations
   type PortMarker = { key: string; lat: number; lng: number; title: string; tripId: string };
   type TripPath = { key: string; coords: { latitude: number; longitude: number }[]; tripId: string };
-  const { portMarkers, tripPaths, unresolvedPorts } = useMemo(() => {
-    const ports: PortMarker[] = [];
-    const paths: TripPath[] = [];
+  type ArrowMarker = { key: string; lat: number; lng: number; angle: number; tripId: string };
+  const { portMarkers, tripPaths, arrowMarkers, unresolvedPorts } = useMemo(() => {
+    const ports: PortMarker[] = []; const paths: TripPath[] = []; const arrows: ArrowMarker[] = []; const unresolved: { port: string; tripId: string }[] = [];
     const norm = (s?: string | null) => (s || '').trim().toLowerCase();
-    const unresolved: { port: string; tripId: string }[] = [];
+    const toRad = (d: number) => d * Math.PI / 180; const toDeg = (r: number) => r * 180 / Math.PI;
+    const bearing = (lat1: number, lon1: number, lat2: number, lon2: number) => { const φ1 = toRad(lat1); const φ2 = toRad(lat2); const Δλ = toRad(lon2 - lon1); const y = Math.sin(Δλ) * Math.cos(φ2); const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ); return (toDeg(Math.atan2(y, x)) + 360) % 360; };
+    const havDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const φ1 = toRad(lat1); const φ2 = toRad(lat2); const a = Math.sin(dLat/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dLon/2)**2; const c = 2 * Math.asin(Math.min(1, Math.sqrt(a))); return R * c; };
+    const interpolateGC = (lat1: number, lon1: number, lat2: number, lon2: number, f: number) => { const φ1 = toRad(lat1), λ1 = toRad(lon1), φ2 = toRad(lat2), λ2 = toRad(lon2); const Δ = 2 * Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2)); if (Δ === 0) return { lat: lat1, lng: lon1 }; const A = Math.sin((1 - f) * Δ) / Math.sin(Δ); const B = Math.sin(f * Δ) / Math.sin(Δ); const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2); const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2); const z = A * Math.sin(φ1) + B * Math.sin(φ2); const φi = Math.atan2(z, Math.sqrt(x * x + y * y)); const λi = Math.atan2(y, x); return { lat: toDeg(φi), lng: ((toDeg(λi) + 540) % 360) - 180 }; };
 
     for (const trip of filteredTrips) {
       const list = Array.isArray(trip.ports) ? trip.ports : [];
-      const coords: { latitude: number; longitude: number }[] = [];
+      const pathCoords: { latitude: number; longitude: number }[] = []; const segmentEndpoints: { latitude: number; longitude: number }[] = [];
       list.forEach((p, idx) => {
-        const pn = norm(p);
-        const primary = norm(p.split(',')[0] || p);
-        if (!pn) return;
-        // Find a note whose locationName includes the planned port name
-        const hit = trip.days.find(d => {
-          if (!d.location) return false;
-          const ln = norm(d.locationName);
-          // match either direction and with primary token to handle inputs like "City, ST, CC"
-          return (
-            ln.includes(pn) || pn.includes(ln) ||
-            (primary ? (ln.includes(primary) || primary.includes(ln)) : false)
-          );
-        });
-        if (hit && hit.location && typeof hit.location.lat === 'number' && typeof hit.location.lng === 'number') {
-          ports.push({ key: `port_${trip.id}_${idx}`, lat: hit.location.lat, lng: hit.location.lng, title: p, tripId: trip.id });
-          coords.push({ latitude: hit.location.lat, longitude: hit.location.lng });
-        } else {
-          // Try fuzzy geocode from cache/curated list
-          const resolved = resolvePortByName(p, portCache);
-          if (resolved) {
-            ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: resolved.name, tripId: trip.id });
-            coords.push({ latitude: resolved.lat, longitude: resolved.lng });
-          } else {
-            unresolved.push({ port: p, tripId: trip.id });
-          }
+        const pn = norm(p); const primary = norm(p.split(',')[0] || p); if (!pn) return;
+        const hit = trip.days.find(d => { if (!d.location) return false; const ln = norm(d.locationName); return (ln.includes(pn) || pn.includes(ln) || (primary ? (ln.includes(primary) || primary.includes(ln)) : false)); });
+        if (hit && hit.location && typeof hit.location.lat === 'number' && typeof hit.location.lng === 'number') { ports.push({ key: `port_${trip.id}_${idx}`, lat: hit.location.lat, lng: hit.location.lng, title: p, tripId: trip.id }); segmentEndpoints.push({ latitude: hit.location.lat, longitude: hit.location.lng }); }
+        else {
+          const resolved = resolvePortByName(p, portCache); if (resolved) { ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: resolved.name, tripId: trip.id }); segmentEndpoints.push({ latitude: resolved.lat, longitude: resolved.lng }); }
+          else { unresolved.push({ port: p, tripId: trip.id }); }
         }
       });
-      if (coords.length >= 2) {
-        paths.push({ key: `path_${trip.id}`, coords, tripId: trip.id });
+      if (segmentEndpoints.length >= 2) {
+        segmentEndpoints.forEach((c, i) => { if (i === 0) { pathCoords.push(c); return; } const prev = segmentEndpoints[i - 1]; const dist = havDistanceKm(prev.latitude, prev.longitude, c.latitude, c.longitude); const steps = Math.min(64, Math.max(1, Math.ceil(dist / 250))); for (let s = 1; s <= steps; s++) { const f = s / (steps + 1); const pt = interpolateGC(prev.latitude, prev.longitude, c.latitude, c.longitude, f); pathCoords.push({ latitude: pt.lat, longitude: pt.lng }); } pathCoords.push(c); });
+        const segStarts: number[] = [0]; let totalDist = 0; for (let i = 1; i < pathCoords.length; i++) { totalDist += havDistanceKm(pathCoords[i-1].latitude, pathCoords[i-1].longitude, pathCoords[i].latitude, pathCoords[i].longitude); segStarts.push(totalDist); }
+        const arrowCount = totalDist < 400 ? 1 : totalDist < 900 ? 2 : Math.min(6, Math.round(totalDist / 600));
+        const arrowPoints: { lat: number; lng: number; angle: number; dist: number }[] = [];
+        if (arrowCount > 0 && totalDist > 0) {
+          for (let a = 1; a <= arrowCount; a++) {
+            const target = (a / (arrowCount + 1)) * totalDist;
+            let lo = 0, hi = segStarts.length - 1, idx = segStarts.length - 1; while (lo <= hi) { const mid = (lo + hi) >> 1; if (segStarts[mid] >= target) { idx = mid; hi = mid - 1; } else { lo = mid + 1; } }
+            if (idx === 0) idx = 1; const prevIdx = idx - 1; const prevDist = segStarts[prevIdx]; const segLen = segStarts[idx] - prevDist; const frac = segLen === 0 ? 0 : (target - prevDist) / segLen; const p0 = pathCoords[prevIdx]; const p1 = pathCoords[idx]; const lat = p0.latitude + (p1.latitude - p0.latitude) * frac; const lng = p0.longitude + (p1.longitude - p0.longitude) * frac; const ahead = idx < pathCoords.length - 1 ? pathCoords[idx + 1] : p1; const ang = bearing(lat, lng, ahead.latitude, ahead.longitude); arrowPoints.push({ lat, lng, angle: ang, dist: target });
+          }
+        }
+        if (arrowPoints.length) {
+          const merged: { latitude: number; longitude: number }[] = [];
+          for (let i = 0; i < pathCoords.length; i++) {
+            const pt = pathCoords[i]; const curDist = i === 0 ? 0 : segStarts[i]; const prevDist = i === 0 ? 0 : segStarts[i - 1]; const segSpanStart = i === 0 ? 0 : prevDist; const segSpanEnd = curDist;
+            if (i > 0) arrowPoints.forEach(ap => { if (ap.dist > segSpanStart && ap.dist <= segSpanEnd) { merged.push({ latitude: ap.lat, longitude: ap.lng }); } });
+            merged.push(pt);
+          }
+          pathCoords.splice(0, pathCoords.length, ...merged);
+        }
+        arrowPoints.forEach((ap, idx) => { arrows.push({ key: `arrow_${trip.id}_${idx}`, lat: ap.lat, lng: ap.lng, angle: ap.angle, tripId: trip.id }); });
+        paths.push({ key: `path_${trip.id}`, coords: pathCoords, tripId: trip.id });
       }
     }
-
-    return { portMarkers: ports, tripPaths: paths, unresolvedPorts: unresolved };
+    return { portMarkers: ports, tripPaths: paths, arrowMarkers: arrows, unresolvedPorts: unresolved };
   }, [filteredTrips, portCache]);
 
-  // Removed route caching/fetching – paths render directly between recorded/derived port points.
-
-  // Effect: for any unresolved ports, try online geocoding and cache results
-  // Normalize helper for names
   const normalizeName = useCallback((s: string) => s.trim().toLowerCase(), []);
-
   useEffect(() => {
     if (!unresolvedPorts || unresolvedPorts.length === 0) return;
-    // Build a unique, normalized list of ports to look up this cycle
     const uniq = Array.from(new Set(unresolvedPorts.map(u => normalizeName(u.port))));
     const toLookup = uniq.filter(n => !pendingPorts.map(normalizeName).includes(n));
     if (toLookup.length === 0) return;
-    // Track pending by original names (best effort)
     setPendingPorts(prev => [...prev, ...toLookup]);
     (async () => {
       for (const normName of toLookup) {
-        const portName = normName; // already normalized
+        const portName = normName;
         try {
-          // Try multiple variants; be gentle to avoid rate limits
           let results = await searchPortsOnline(portName, 1);
-          if (!results || results.length === 0) {
-            results = await searchPortsOnline(`${portName} cruise port`, 1);
-          }
-          if (!results || results.length === 0) {
-            results = await searchPortsOnline(`${portName} port`, 1);
-          }
-          if (results && results.length > 0) {
-            await upsertCachedPort(results[0]);
-          }
+          if (!results || results.length === 0) results = await searchPortsOnline(`${portName} cruise port`, 1);
+          if (!results || results.length === 0) results = await searchPortsOnline(`${portName} port`, 1);
+          if (results && results.length > 0) await upsertCachedPort(results[0]);
         } catch {}
-        // Small delay between calls to be polite to the API
         try { await new Promise(res => setTimeout(res, 400)); } catch {}
       }
-      // After all lookups, refresh the cache and trips to trigger a re-render
       try {
-        const [cache, trips] = await Promise.all([
-          loadPortsCache(),
-          getTrips(),
-        ]);
+        const [cache, trips] = await Promise.all([loadPortsCache(), getTrips()]);
         setPortCache(cache);
         setTrips(trips);
       } catch {}
     })();
   }, [unresolvedPorts, pendingPorts, normalizeName]);
 
-  // Static cluster bubble (no animation to prevent flashing)
   const ClusterBubble = ({ count }: { count: number }) => (
     <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: (themeColors as any).primaryDark || themeColors.primary, borderWidth: 2, borderColor: themeColors.background, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
       <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{count}</Text>
     </View>
   );
 
-  // NoteMarker removed; using native pin to reduce flicker
-
   return (
     <View style={styles.container}>
-  {!mapDisabled && (
-  <MapView
-        ref={(ref: MapView | null) => { mapRef.current = ref; }}
-        style={styles.map}
-        initialRegion={initial}
-        provider={PROVIDER_GOOGLE}
-        customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
-        onRegionChangeComplete={async (r: Region) => {
-          setRegion(r);
-          try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {}
-        }}
-      >
-    {/* Cruise lines between planned ports per trip */}
-  {tripPaths.map(path => (
-        <Polyline
-          key={path.key}
-          coordinates={path.coords}
-          strokeColor={themeColors.secondary}
-          strokeWidth={4}
-          lineCap="round"
-          lineJoin="round"
-          geodesic
-        />
-      ))}
-    {clusters.map(item => (
-      item.type === 'point' ? (
-        <Marker
-          key={item.point.key}
-          coordinate={{ latitude: item.point.lat, longitude: item.point.lng }}
-          pinColor={(themeColors as any).primaryDark || themeColors.primary}
-          tracksViewChanges={false}
-          accessibilityLabel={`Note: ${item.point.title}`}
-        >
-          <Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
-            <View style={styles.calloutBubble}>
-              <Text style={styles.calloutTitle}>{item.point.title}</Text>
-              {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
-              <Text style={styles.calloutAction}>Open note</Text>
-            </View>
-          </Callout>
-        </Marker>
-      ) : (
-  <Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
-          <ClusterBubble count={item.cluster.count} />
-        </Marker>
-      )
-    ))}
-    {/* Planned ports as minimalist circles (no callouts) */}
-    {portMarkers.map(pm => (
-      <Marker
-        key={pm.key}
-        coordinate={{ latitude: pm.lat, longitude: pm.lng }}
-        anchor={{ x: 0.5, y: 0.5 }}
-        tracksViewChanges={false}
-        zIndex={9999}
-        accessibilityLabel={`Planned port: ${pm.title}`}
-  title={pm.title || 'Planned port'}
-  description={'Planned port'}
-      >
-        <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
-      </Marker>
-    ))}
-  </MapView>
-  )}
+      {!mapDisabled && (
+        <>
+          <MapView
+            ref={(ref: MapView | null) => { mapRef.current = ref; }}
+            style={styles.map}
+            initialRegion={initial}
+            provider={PROVIDER_GOOGLE}
+            customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
+            mapType={mapType}
+            onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
+            onLongPress={async e => {
+              const coord = e.nativeEvent.coordinate; setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
+              try {
+                const perm = await Location.getForegroundPermissionsAsync();
+                if (!perm.granted && perm.canAskAgain) { const req = await Location.requestForegroundPermissionsAsync(); if (!req.granted) {} }
+                const res = await Location.reverseGeocodeAsync({ latitude: coord.latitude, longitude: coord.longitude });
+                if (res && res.length) { const r = res[0]; const parts = [r.city || r.district || r.subregion, r.region, r.country].filter(Boolean) as string[]; const name = parts.filter((p, idx) => !parts.slice(0, idx).includes(p)).join(', '); setPendingPlaceName(name || null); }
+              } catch {}
+            }}
+          >
+            {routesVisible && tripPaths.map(path => (
+              <Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
+            ))}
+            {routesVisible && arrowMarkers.map(am => (
+              <Marker key={am.key} coordinate={{ latitude: am.lat, longitude: am.lng }} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false} zIndex={5000} accessibilityLabel="Direction arrow">
+                <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
+                  <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
+                    <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2, textShadowColor: '#00000055', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }} />
+                  </View>
+                </View>
+              </Marker>
+            ))}
+            {clusters.map(item => (
+              item.type === 'point' ? (
+                <Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }} pinColor={(themeColors as any).primaryDark || themeColors.primary} tracksViewChanges={false} accessibilityLabel={`Note: ${item.point.title}`}>
+                  <Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
+                    <View style={styles.calloutBubble}>
+                      <Text style={styles.calloutTitle}>{item.point.title}</Text>
+                      {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
+                      <Text style={styles.calloutAction}>Open note</Text>
+                    </View>
+                  </Callout>
+                </Marker>
+              ) : (
+                <Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
+                  <ClusterBubble count={item.cluster.count} />
+                </Marker>
+              )
+            ))}
+            {portMarkers.map(pm => (
+              <Marker key={pm.key} coordinate={{ latitude: pm.lat, longitude: pm.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={9999} title={pm.title || 'Planned port'} description={'Planned port'} accessibilityLabel={`Planned port: ${pm.title}`}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
+              </Marker>
+            ))}
+          </MapView>
+          <View style={{ position: 'absolute', bottom: 16, right: 16, alignItems: 'flex-end' }}>
+            <Pressable
+              onPress={() => { setMapType(t => { const next = t === 'standard' ? 'hybrid' : 'standard'; setPref('defaultMapType', next).catch(() => {}); return next; }); }}
+              style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 24, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }}
+              accessibilityLabel="Toggle map type"
+            >
+              <Text style={{ color: themeColors.primaryDark, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+
       <View style={styles.overlay}>
         <View style={styles.overlayTopRow}>
-          <Text style={styles.overlayText}>
-            {category === 'inprogress' ? 'Showing: In Progress' : category === 'upcoming' ? 'Showing: Upcoming' : category === 'completed' ? 'Showing: Completed' : 'Showing: All Cruises'}
-          </Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={styles.overlayFilterRow}>
+            <Text style={[styles.overlayChipText, { marginRight: 6 }]}>Filter:</Text>
             <TouchableOpacity
-              onPress={() => {
-                setCategory(prev => prev === 'inprogress' ? 'upcoming' : prev === 'upcoming' ? 'completed' : prev === 'completed' ? 'all' : 'inprogress');
-              }}
+              onPress={() => { setCategory(prev => prev === 'inprogress' ? 'upcoming' : prev === 'upcoming' ? 'completed' : prev === 'completed' ? 'all' : 'inprogress'); }}
               style={[styles.overlayChip, styles.overlayChipActive]}
+              accessibilityLabel={`Cycle trip filter. Current: ${category}`}
             >
-              <Text style={styles.overlayChipText}>
-                {category === 'inprogress' ? 'In Progress' : category === 'upcoming' ? 'Upcoming' : category === 'completed' ? 'Completed' : 'All Cruises'}
-              </Text>
+              <Text style={styles.overlayChipText}>{category === 'inprogress' ? 'In Progress' : category === 'upcoming' ? 'Upcoming' : category === 'completed' ? 'Completed' : 'All'}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.overlayFilterRow}>
+            <Text style={[styles.overlayChipText, { marginRight: 6 }]}>Routes:</Text>
+            <TouchableOpacity
+              onPress={() => setRoutesVisible(v => !v)}
+              style={[styles.overlayChip, styles.overlayChipActive, !routesVisible && { backgroundColor: themeColors.menuBorder }]}
+              accessibilityLabel={routesVisible ? 'Hide route lines' : 'Show route lines'}
+            >
+              <Text style={styles.overlayChipText}>{routesVisible ? 'Hide' : 'Show'}</Text>
             </TouchableOpacity>
           </View>
         </View>
-        {/* Legend moved beneath filter controls */}
-        <View style={styles.legendRow}>
-          <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: themeColors.accent, marginRight: 6 }} />
-          <Text style={[styles.overlayChipText, { marginRight: 10 }]}>Planned ports: {portMarkers.length}</Text>
-          <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: (themeColors as any).primaryDark || themeColors.primary, marginRight: 6 }} />
-          <Text style={styles.overlayChipText}>Notes / Clusters</Text>
+      </View>
+
+      <View style={styles.legendCard} pointerEvents="none">
+        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:8 }}>
+          <View style={{ width:12, height:12, borderRadius:6, backgroundColor: themeColors.accent, marginRight:6 }} />
+          <Text style={styles.legendText}>Ports</Text>
+        </View>
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <View style={{ width:12, height:12, borderRadius:6, backgroundColor: (themeColors as any).primaryDark || themeColors.primary, marginRight:6 }} />
+          <Text style={styles.legendText}>Notes</Text>
         </View>
       </View>
-  {/* Trip selection dropdown removed; category cycles instead */}
+
       {mapDisabled && (
         <View style={[styles.container, styles.empty, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }] }>
           <Text style={styles.emptyText}>Map is disabled.</Text>
         </View>
       )}
+
+      <Modal
+        visible={addLocationModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null); }}
+      >
+        <Pressable style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)' }} onPress={() => { setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null); }} />
+        <View style={{ position:'absolute', left:0, right:0, bottom:0, padding:18 }} pointerEvents="box-none">
+          <View style={{ backgroundColor: themeColors.card, borderRadius:16, padding:16, borderWidth:1, borderColor: themeColors.menuBorder }}>
+            <Text style={{ fontSize:16, fontWeight:'700', marginBottom:10, color: themeColors.text }}>Add Location to Trip</Text>
+            {!!pendingCoord && (
+              <Text style={{ fontSize:12, color: themeColors.textSecondary, marginBottom:12 }}>
+                {pendingPlaceName ? pendingPlaceName : `${pendingCoord.latitude.toFixed(4)}, ${pendingCoord.longitude.toFixed(4)}${pendingPlaceName===null ? ' (resolving...)' : ''}`}
+              </Text>
+            )}
+            <FlatList
+              data={trips}
+              keyExtractor={t => t.id}
+              style={{ maxHeight: 260 }}
+              renderItem={({ item }) => {
+                const active = addingTripId === item.id;
+                return (
+                  <TouchableOpacity
+                    style={{ paddingVertical:10, paddingHorizontal:12, borderRadius:10, backgroundColor: active ? themeColors.primary + '33' : themeColors.background, marginBottom:8, borderWidth:1, borderColor: active ? themeColors.primary : themeColors.menuBorder }}
+                    onPress={async () => {
+                      if (!pendingCoord) return;
+                      setAddingTripId(item.id);
+                      const newNote: any = { id: uid(), date: new Date().toISOString().slice(0,10), title: 'Pinned Location', description: '', location: { lat: pendingCoord.latitude, lng: pendingCoord.longitude }, locationName: pendingPlaceName || undefined };
+                      const updated: Trip = { ...item, days: [...item.days, newNote] };
+                      await upsertTrip(updated); await refresh(); setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null);
+                    }}
+                  >
+                    <Text style={{ fontWeight:'600', color: themeColors.text }}>{item.title}</Text>
+                    {item.startDate && <Text style={{ fontSize:11, color: themeColors.textSecondary }}>{item.startDate}{item.endDate ? ' → ' + item.endDate : ''}</Text>}
+                  </TouchableOpacity>
+                );
+              }}
+            />
+            <TouchableOpacity onPress={() => { setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null); }} style={{ alignSelf:'flex-end', marginTop:6, paddingVertical:8, paddingHorizontal:14 }}>
+              <Text style={{ color: themeColors.primary, fontWeight:'600' }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

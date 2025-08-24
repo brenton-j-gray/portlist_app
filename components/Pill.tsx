@@ -14,9 +14,10 @@ interface PillProps {
   numberOfLines?: number;
   style?: ViewStyle;
   textStyle?: TextStyle;
+  iconColorOverride?: string; // allow custom icon tint (e.g., weather colors)
 }
 
-export function Pill({ variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle }: PillProps) {
+export function Pill({ variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle, iconColorOverride }: PillProps) {
   const { themeColors, colorScheme } = useTheme();
   // Map variant to a token color from theme
   const token: string = (() => {
@@ -47,7 +48,7 @@ export function Pill({ variant, iconName, children, size = 'sm', numberOfLines =
       ]}
     >
       {!!iconName && (
-        <Ionicons name={iconName as any} size={iconSize} color={token} style={{ marginRight: 6 }} />
+        <Ionicons name={iconName as any} size={iconSize} color={iconColorOverride || token} style={{ marginRight: 6 }} />
       )}
       <Text
         numberOfLines={numberOfLines}

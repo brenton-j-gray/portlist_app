@@ -52,6 +52,7 @@
     "expo-system-ui": "~5.0.10",
     "expo-task-manager": "^13.1.6",
     "expo-web-browser": "^14.2.0",
+  "expo-print": "~13.0.3",
     "react": "19.0.0",
     "react-native": "^0.79.5",
     "react-native-gesture-handler": "~2.24.0",

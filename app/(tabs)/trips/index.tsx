@@ -2,13 +2,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, FlatList, ImageBackground, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { formatDateWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 
 import { useTheme } from '../../../components/ThemeContext';
-import { exportAllTripsJSON } from '../../../lib/exportTrip';
-import { getTrips } from '../../../lib/storage';
+import { exportAllTripsPDF } from '../../../lib/exportTrip';
+import { getTrips, saveTrips } from '../../../lib/storage';
 import { Trip } from '../../../types';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -20,52 +22,6 @@ function startOfToday(): Date {
 	const now = new Date();
 	return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
-function getDaysLabel(item: Trip): { text: string; kind: 'future' | 'past' | 'today' | 'current' } | undefined {
-	const today = startOfToday().getTime();
-	const hasStart = !!item.startDate;
-	const hasEnd = !!item.endDate;
-	const startTs = hasStart ? parseLocalYmd(item.startDate as string).getTime() : undefined;
-	const endTs = hasEnd ? parseLocalYmd(item.endDate as string).getTime() : undefined;
-
-	// Future: count down to start date
-	if (typeof startTs === 'number' && today < startTs) {
-		const diff = Math.ceil((startTs - today) / MS_PER_DAY);
-		return { text: `${diff} day${diff === 1 ? '' : 's'} until start`, kind: 'future' };
-	}
-
-	// Current (in progress): between start and end (inclusive)
-	if (typeof startTs === 'number' && typeof endTs === 'number' && today >= startTs && today <= endTs) {
-		return { text: 'In progress', kind: 'current' };
-	}
-
-	// Past: prefer days since end if end date exists, else days since start if only start exists
-	if (typeof endTs === 'number' && today > endTs) {
-		const diff = Math.floor((today - endTs) / MS_PER_DAY);
-		const days = Math.max(0, diff);
-		return { text: `${days} day${days === 1 ? '' : 's'} since end`, kind: 'past' };
-	}
-	if (typeof startTs === 'number' && !hasEnd && today > startTs) {
-		const diff = Math.floor((today - startTs) / MS_PER_DAY);
-		const days = Math.max(0, diff);
-		return { text: `${days} day${days === 1 ? '' : 's'} since start`, kind: 'past' };
-	}
-
-	// Today edge-cases
-	if (typeof startTs === 'number' && today === startTs) {
-		return { text: 'Starts today', kind: 'today' };
-	}
-
-	// Fallback: days since created if no dates present
-	if (!hasStart && !hasEnd && typeof item.createdAt === 'number') {
-		const createdDay = new Date(item.createdAt);
-		const createdMid = new Date(createdDay.getFullYear(), createdDay.getMonth(), createdDay.getDate()).getTime();
-		const diff = Math.floor((today - createdMid) / MS_PER_DAY);
-		const days = Math.max(0, diff);
-		return { text: `${days} day${days === 1 ? '' : 's'} since created`, kind: days === 0 ? 'today' : 'past' };
-	}
-
-	return undefined;
-}
 function parseLocalFromString(dateStr: string | undefined): Date | null {
 	if (!dateStr) return null;
 	const ymd = String(dateStr).slice(0, 10); // supports 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm...'
@@ -75,16 +31,6 @@ function parseLocalFromString(dateStr: string | undefined): Date | null {
 	}
 	const d = new Date(dateStr);
 	return isNaN(d.getTime()) ? null : d;
-}
-function formatDate(dateStr: string) {
-	const d = parseLocalFromString(dateStr);
-	if (!d) return dateStr || '';
-	return d.toLocaleDateString(undefined, {
-		weekday: 'short',
-		day: '2-digit',
-		month: 'short',
-		year: 'numeric',
-	});
 }
 
 function computeDurationDays(start?: string, end?: string): number | null {
@@ -111,21 +57,53 @@ const CARD_SHADOW: any = {
 
 export default function TripsScreen() {
 	const { themeColors } = useTheme();
+	const { prefs, setPref } = usePreferences();
 	const insets = useSafeAreaInsets();
 	const [trips, setTrips] = useState<Trip[]>([]);
-	const [sortBy, setSortBy] = useState<'created' | 'title' | 'startDate'>('created');
+	const [sortBy, setSortBy] = useState<'created' | 'title' | 'startDate'>(prefs.defaultTripsSort);
+	useEffect(() => { setSortBy(prefs.defaultTripsSort); }, [prefs.defaultTripsSort]);
 	const [tab, setTab] = useState<'inprogress' | 'upcoming' | 'completed'>('upcoming');
 	const [query, setQuery] = useState('');
 	const [showSortMenu, setShowSortMenu] = useState(false);
-	const [fabMenuModalVisible, setFabMenuModalVisible] = useState(false); // controls Modal mount for exit animation
-	const menuOpacity = useRef(new Animated.Value(0)).current;
-	const menuTranslate = useRef(new Animated.Value(8)).current;
-	const FAB_SIZE = 56;
+	// FAB removed; dedicated Export + Sort buttons now inline / floating
+	const [pendingDelete, setPendingDelete] = useState<Trip | null>(null);
+	const [showUndo, setShowUndo] = useState(false);
+	const undoTimerRef = useRef<number | null>(null);
+	const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
 
 	const refresh = useCallback(async () => {
-		const all = await getTrips();
-		setTrips(all);
+        const all = await getTrips();
+        setTrips(all);
 	}, []);
+
+	const finalizeDelete = useCallback(async (trip: Trip) => {
+		setTrips(prev => prev.filter(t => t.id !== trip.id));
+		const remaining = (await getTrips()).filter(t => t.id !== trip.id);
+		await saveTrips(remaining);
+	}, []);
+
+	const handleDelete = useCallback((trip: Trip) => {
+		if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+		setPendingDelete(trip);
+		finalizeDelete(trip);
+		setShowUndo(true);
+		undoTimerRef.current = setTimeout(() => {
+			setPendingDelete(null);
+			setShowUndo(false);
+			undoTimerRef.current = null;
+		}, 5000);
+	}, [finalizeDelete]);
+
+	const handleUndo = useCallback(async () => {
+		if (!pendingDelete) return;
+		if (undoTimerRef.current) { clearTimeout(undoTimerRef.current); undoTimerRef.current = null; }
+		const trip = pendingDelete;
+		setPendingDelete(null);
+		setShowUndo(false);
+		setTrips(prev => [...prev, trip].sort((a,b)=>b.createdAt - a.createdAt));
+		const existing = await getTrips();
+		await saveTrips([...existing, trip]);
+	}, [pendingDelete]);
 
 	useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
 
@@ -233,7 +211,8 @@ export default function TripsScreen() {
 			searchRow: {
 				flexDirection: 'row',
 				alignItems: 'center',
-				marginBottom: 8,
+				marginBottom: 6,
+				marginTop: -2, // tighten space above search bar
 			},
 			sortRow: {
 			flexDirection: 'row',
@@ -324,14 +303,13 @@ export default function TripsScreen() {
 			textAlign: 'center',
 			letterSpacing: 0.1,
 		},
-	container: { flex: 1, padding: 16, backgroundColor: themeColors.background },
+	container: { flex: 1, padding: 16, backgroundColor: themeColors.background, paddingBottom: Math.max(24, (insets?.bottom || 0) + 16) },
 	header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 },
 	title: { fontSize: 30, fontWeight: '600', color: themeColors.text },
 		addBtn: { backgroundColor: (themeColors as any).btnBg || themeColors.secondary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
 		addText: { color: (themeColors as any).btnText || '#FFFFFF', fontWeight: '600' },
-		listContent: { paddingBottom: 30 },
+		listContent: { paddingBottom: 30 + Math.max(0, (insets?.bottom || 0)) },
 	card: {
-			marginBottom: 16,
 			borderRadius: 18,
 			backgroundColor: themeColors.card,
 				borderWidth: 1,
@@ -544,49 +522,41 @@ export default function TripsScreen() {
 				fontWeight: '700',
 				color: (themeColors as any).btnText || themeColors.badgeText,
 			},
-	}), [themeColors]);
+			inlineAddRow: {
+				flexDirection: 'row',
+				alignItems: 'center',
+				gap: 10,
+				marginBottom: 4,
+			},
+			inlineAddBtn: {
+				flexDirection: 'row',
+				alignItems: 'center',
+				gap: 8,
+				paddingVertical: 10,
+				paddingHorizontal: 16,
+				borderRadius: 14,
+				backgroundColor: (themeColors as any).btnBg || themeColors.secondary,
+				borderWidth: 1,
+				borderColor: themeColors.primaryDark + '29',
+				shadowColor: '#000',
+				shadowOpacity: 0.15,
+				shadowRadius: 4,
+				shadowOffset: { width: 0, height: 2 },
+				elevation: 2,
+				justifyContent: 'center',
+			},
+			inlineAddText: {
+				fontSize: 15,
+				fontWeight: '700',
+				letterSpacing: 0.2,
+				color: (themeColors as any).btnText || themeColors.badgeText,
+			},
+	}), [themeColors, insets?.bottom]);
 
-	// Sit the FAB closer to the bottom edge while respecting safe area
-	const fabBottom = Math.max(12, (insets?.bottom || 0) + 20);
-
-	const openFabMenu = useCallback(() => {
-		setFabMenuModalVisible(true);
-		menuOpacity.setValue(0);
-		menuTranslate.setValue(8);
-		Animated.parallel([
-			Animated.timing(menuOpacity, { toValue: 1, duration: 140, useNativeDriver: true }),
-			Animated.spring(menuTranslate, {
-				toValue: 0,
-				useNativeDriver: true,
-				damping: 14,
-				stiffness: 180,
-				mass: 0.9,
-				velocity: 0.8,
-				overshootClamping: false,
-			}),
-		]).start();
-	}, [menuOpacity, menuTranslate]);
-
-	const closeFabMenu = useCallback(() => {
-		Animated.parallel([
-			Animated.timing(menuOpacity, { toValue: 0, duration: 120, useNativeDriver: true }),
-			Animated.spring(menuTranslate, {
-				toValue: 8,
-				useNativeDriver: true,
-				damping: 18,
-				stiffness: 220,
-				mass: 1.0,
-				velocity: 0.6,
-				overshootClamping: true,
-			}),
-		]).start(({ finished }) => {
-			if (finished) setFabMenuModalVisible(false);
-		});
-	}, [menuOpacity, menuTranslate]);
 
 	return (
 		<View style={styles.container}>
-			{/* Filters: Search (row 1) + Status/Sort and Export (row 2) */}
+		{/* Filters: Search (row 1) + Status/Sort and Export (row 2) */}
 			<View style={styles.searchRow}>
 				<TextInput
 					style={styles.searchInput}
@@ -628,6 +598,34 @@ export default function TripsScreen() {
 				</View>
 			</View>
 
+				{/* New Trip and Export inline left; sort button right */}
+				<View style={[styles.inlineAddRow, { justifyContent: 'space-between', position: 'relative' }]}> 
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+						<Pressable
+							onPress={() => exportAllTripsPDF()}
+							accessibilityLabel="Export all trips"
+							style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, alignItems: 'center', justifyContent: 'center' }}
+						>
+							<Ionicons name="download-outline" size={18} color={themeColors.primaryDark} />
+						</Pressable>
+						<Pressable
+							style={[styles.inlineAddBtn, { width: undefined }]}
+							onPress={() => router.push('/(tabs)/trips/new' as any)}
+							accessibilityLabel="Add new trip"
+						>
+							<Ionicons name="add-circle-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
+							<Text style={styles.inlineAddText}>New Trip</Text>
+						</Pressable>
+					</View>
+					<Pressable
+						style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, alignItems: 'center', justifyContent: 'center' }}
+						onPress={() => setShowSortMenu(true)}
+						accessibilityLabel="Open sort options"
+					>
+						<Ionicons name="swap-vertical-outline" size={20} color={themeColors.primaryDark} />
+					</Pressable>
+				</View>
+
 			{/* Sort menu modal */}
 			<Modal visible={showSortMenu} transparent animationType="fade" onRequestClose={() => setShowSortMenu(false)}>
 				<Pressable style={styles.modalBackdrop} onPress={() => setShowSortMenu(false)}>
@@ -638,21 +636,21 @@ export default function TripsScreen() {
 						<Text style={styles.modalTitle}>Sort by</Text>
 						<TouchableOpacity
 							style={[styles.modalOption, sortBy === 'created' && styles.modalOptionActive]}
-							onPress={() => { setSortBy('created'); setShowSortMenu(false); }}
+							onPress={() => { setSortBy('created'); setPref('defaultTripsSort', 'created'); setShowSortMenu(false); }}
 							accessibilityLabel="Sort by Recent"
 						>
 							<Text style={[styles.modalOptionText, sortBy === 'created' && styles.modalOptionTextActive]}>Recent</Text>
 						</TouchableOpacity>
 						<TouchableOpacity
 							style={[styles.modalOption, sortBy === 'title' && styles.modalOptionActive]}
-							onPress={() => { setSortBy('title'); setShowSortMenu(false); }}
+							onPress={() => { setSortBy('title'); setPref('defaultTripsSort', 'title'); setShowSortMenu(false); }}
 							accessibilityLabel="Sort by A-Z"
 						>
 							<Text style={[styles.modalOptionText, sortBy === 'title' && styles.modalOptionTextActive]}>A-Z</Text>
 						</TouchableOpacity>
 						<TouchableOpacity
 							style={[styles.modalOption, sortBy === 'startDate' && styles.modalOptionActive]}
-							onPress={() => { setSortBy('startDate'); setShowSortMenu(false); }}
+							onPress={() => { setSortBy('startDate'); setPref('defaultTripsSort', 'startDate'); setShowSortMenu(false); }}
 							accessibilityLabel="Sort by Start Date"
 						>
 							<Text style={[styles.modalOptionText, sortBy === 'startDate' && styles.modalOptionTextActive]}>Start Date</Text>
@@ -679,19 +677,87 @@ export default function TripsScreen() {
 					renderItem={({ item }) => {
 						const withPhotos = [...item.days].filter(d => (d.photos && d.photos.length > 0) || d.photoUri);
 						withPhotos.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-						const bgUri = withPhotos.length > 0 ? (withPhotos[0].photos?.[0]?.uri || withPhotos[0].photoUri) : undefined;
+							const bgUri = withPhotos.length > 0 ? (withPhotos[0].photos?.[0]?.uri || withPhotos[0].photoUri) : undefined;
 						return (
-							<View style={{ position: 'relative' }}>
-								<Pressable
-									style={({ pressed }) => [
-										styles.card,
-										CARD_SHADOW,
-										pressed && styles.cardPressed
-									]}
-									onPress={() => router.push({ pathname: '/(tabs)/trips/[id]' as any, params: { id: item.id } } as any)}
-									accessibilityLabel={`Trip card for ${item.title}`}
-									hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-								>
+							<View style={{ marginBottom: 16, borderRadius: 18 }}>
+							<Swipeable
+								overshootLeft={false}
+								overshootRight={false}
+								renderLeftActions={(progress) => {
+									const opacity = progress.interpolate({ inputRange: [0, 0.05, 0.4, 1], outputRange: [0, 0.15, 0.85, 1], extrapolate: 'clamp' });
+									const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1], extrapolate: 'clamp' });
+									return (
+										<Animated.View style={{ flexDirection: 'row', alignItems: 'center', opacity }}>
+											<Animated.View style={{ transform: [{ scale }] }}>
+												<Pressable
+													onPress={() => router.push({ pathname: '/(tabs)/trips/[id]' as any, params: { id: item.id } } as any)}
+													accessibilityLabel={`Edit trip ${item.title}`}
+													style={{
+														width: 84,
+														height: rowHeights[item.id] || 90,
+														justifyContent: 'center',
+														alignItems: 'center',
+														backgroundColor: themeColors.primary,
+														borderRadius: 18,
+														marginRight: 8,
+														shadowColor: '#000',
+														shadowOpacity: 0.15,
+														shadowRadius: 4,
+														shadowOffset: { width: 0, height: 2 },
+														elevation: 2,
+													}}
+												>
+													<Ionicons name="create-outline" size={26} color={themeColors.badgeText} />
+													<Text style={{ color: themeColors.badgeText, fontSize: 12, fontWeight: '700', marginTop: 4 }}>Edit</Text>
+												</Pressable>
+											</Animated.View>
+										</Animated.View>
+									);
+								}}
+								renderRightActions={(progress) => {
+									const opacity = progress.interpolate({ inputRange: [0, 0.05, 0.4, 1], outputRange: [0, 0.15, 0.85, 1], extrapolate: 'clamp' });
+									const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1], extrapolate: 'clamp' });
+									return (
+										<Animated.View style={{ flexDirection: 'row', alignItems: 'center', opacity }}>
+											<Animated.View style={{ transform: [{ scale }] }}>
+												<Pressable
+													onPress={() => handleDelete(item)}
+													accessibilityLabel={`Delete trip ${item.title}`}
+													style={{
+														width: 84,
+														height: rowHeights[item.id] || 90,
+														justifyContent: 'center',
+														alignItems: 'center',
+														backgroundColor: themeColors.danger,
+														borderRadius: 18,
+														marginLeft: 8,
+														shadowColor: '#000',
+														shadowOpacity: 0.15,
+														shadowRadius: 4,
+														shadowOffset: { width: 0, height: 2 },
+														elevation: 2,
+													}}
+												>
+													<Ionicons name="trash-outline" size={26} color={themeColors.badgeText} />
+													<Text style={{ color: themeColors.badgeText, fontSize: 12, fontWeight: '700', marginTop: 4 }}>Delete</Text>
+												</Pressable>
+											</Animated.View>
+										</Animated.View>
+									);
+								}}
+							>
+								<View style={{ position: 'relative' }}>
+									<Pressable
+										onLayout={(e)=>{ const h = e.nativeEvent.layout.height; setRowHeights(prev => prev[item.id]===h?prev:{...prev,[item.id]:h}); }}
+										style={({ pressed }) => [
+											styles.card,
+											CARD_SHADOW,
+											pressed && styles.cardPressed
+										]}
+										onPress={() => router.push({ pathname: '/(tabs)/trips/[id]' as any, params: { id: item.id } } as any)}
+										accessibilityLabel={`Trip card for ${item.title}`}
+										hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+									>
 										{bgUri ? (
 											<>
 												<ImageBackground
@@ -717,158 +783,133 @@ export default function TripsScreen() {
 											end={{ x: 0, y: 1 }}
 											style={styles.cardAccent}
 										/>
-									<View style={styles.cardContent}>
-										{/* Removed cardContentBackdrop for cleaner look with blur/white overlay */}
-										<View style={styles.cardHeaderRow}>
-											<Text
-												style={[
-													styles.cardTitle,
-													bgUri ? styles.cardTextShadow : null,
-													bgUri ? { color: '#fff' } : null
-												]}
-												numberOfLines={1}
-											>
-												{item.title}
-											</Text>
-											{item.completed ? (
-												<View style={[styles.completedChip, bgUri ? { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: '#fff' } : null]}>
+										<View style={styles.cardContent}>
+											<View style={styles.cardHeaderRow}>
+												<Text
+													style={[
+														styles.cardTitle,
+														bgUri ? styles.cardTextShadow : null,
+														bgUri ? { color: '#fff' } : null
+													]}
+													numberOfLines={1}
+												>
+													{item.title}
+												</Text>
+												{item.completed ? (
+													<View style={[styles.completedChip, bgUri ? { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: '#fff' } : null]}>
 													<Ionicons name="checkmark-done-outline" size={14} color={bgUri ? '#fff' : themeColors.primaryDark} />
 													<Text style={[styles.completedChipText, bgUri ? { color: '#fff' } : null]}>Completed</Text>
 												</View>
 											) : null}
-											<Text style={[styles.metaText, { marginRight: 4 }, bgUri ? styles.cardTextShadow : null, bgUri ? { color: '#fff' } : null]}>Notes</Text>
-											<LinearGradient
-												colors={themeColors.cardAccentGradient as any}
-												start={{ x: 0, y: 0 }}
-												end={{ x: 1, y: 0 }}
-												style={styles.badge}
-											>
-												<Text style={styles.badgeText}>{item.days.length}</Text>
-											</LinearGradient>
+											{/* Notes badge removed; integrated into summary sentences */}
 										</View>
-										<Text style={[
-											styles.metaText,
-											bgUri ? styles.cardTextShadow : null,
-											bgUri ? { color: '#efefef' } : null
-										]}>
-											{item.startDate ? formatDate(item.startDate) : 'Start ?'} → {item.endDate ? formatDate(item.endDate) : 'End ?'}
-										</Text>
+										{/* Date line restored under title */}
+											{(() => {
+											function fullFmt(d?: string) {
+												if (!d) return '';
+												return formatDateWithPrefs(d, prefs, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+											}
+											let text = '';
+											if (item.startDate && item.endDate) {
+												if (item.startDate === item.endDate) text = fullFmt(item.startDate);
+												else {
+													text = `${fullFmt(item.startDate)} – ${fullFmt(item.endDate)}`;
+												}
+											} else if (item.startDate) {
+												text = fullFmt(item.startDate);
+											} else if (item.endDate) {
+												text = fullFmt(item.endDate);
+											}
+											if (!text) return null;
+											const lineColor = bgUri ? { color: '#f3f3f3' } : null;
+											return <Text style={[styles.metaText, { fontWeight: '700' }, bgUri ? styles.cardTextShadow : null, lineColor]}>{text}</Text>;
+										})()}
 										{(() => {
-											const days = computeDurationDays(item.startDate, item.endDate);
-											if (!days) return null;
+											const duration = computeDurationDays(item.startDate, item.endDate);
+											const portsCount = item.ports?.length || 0;
+											const notesCount = item.days.length;
+											const seaDays = item.days.filter(d => (d as any).isSeaDay).length;
+											const parts: string[] = ['A'];
+											if (duration) parts.push(`${duration}-day`);
+											parts.push('cruise');
+											if (item.ship) parts.push('on the ' + item.ship); else parts.push('(ship TBD)');
+											if (portsCount > 0) parts.push(`visiting ${portsCount} port${portsCount === 1 ? '' : 's'}`);
+											const extras: string[] = [];
+											if (notesCount > 0) extras.push(`${notesCount} note${notesCount === 1 ? '' : 's'}`);
+											if (seaDays > 0) extras.push(`${seaDays} sea day${seaDays === 1 ? '' : 's'}`);
+											let sentence1 = parts.join(' ');
+											if (extras.length) sentence1 += ' (' + extras.join(', ') + ')';
+											if (!sentence1.endsWith('.')) sentence1 += '.'; // date range now shown above title line
+											let sentence2 = '';
+											if (item.startDate) {
+												const todayMid = startOfToday().getTime();
+												const startTs = parseLocalYmd(item.startDate).getTime();
+												if (item.endDate) {
+													const endTs = parseLocalYmd(item.endDate).getTime();
+													if (todayMid >= startTs && todayMid <= endTs) {
+														const dayNumber = Math.floor((todayMid - startTs) / MS_PER_DAY) + 1;
+														const totalDays = duration || Math.floor((endTs - startTs) / MS_PER_DAY) + 1;
+														const daysLeftCount = Math.floor((endTs - todayMid) / MS_PER_DAY);
+														let tail = '';
+														if (daysLeftCount < 0) tail = 'ended';
+														else if (daysLeftCount === 0) tail = 'ends today';
+														else tail = `ends in ${daysLeftCount} day${daysLeftCount === 1 ? '' : 's'}`;
+														sentence2 = `Day ${dayNumber} of ${totalDays} (${tail})`;
+													} else if (startTs > todayMid) {
+														const daysUntil = Math.floor((startTs - todayMid) / MS_PER_DAY);
+														if (daysUntil === 0) sentence2 = 'Begins today';
+														else if (daysUntil === 1) sentence2 = 'Begins tomorrow';
+														else sentence2 = `Begins in ${daysUntil} days`;
+													} else if (todayMid > endTs) {
+														const daysSinceEnd = Math.floor((todayMid - endTs) / MS_PER_DAY);
+														if (daysSinceEnd === 1) sentence2 = 'Ended yesterday';
+														else sentence2 = `Ended ${daysSinceEnd} days ago`;
+													}
+												} else {
+													if (startTs > todayMid) {
+														const daysUntil = Math.floor((startTs - todayMid) / MS_PER_DAY);
+														if (daysUntil === 0) sentence2 = 'Begins today';
+														else if (daysUntil === 1) sentence2 = 'Begins tomorrow';
+														else sentence2 = `Begins in ${daysUntil} days`;
+													} else if (startTs === todayMid) {
+														sentence2 = 'Began today';
+													} else {
+														sentence2 = 'In progress';
+													}
+												}
+											}
+											if (!item.startDate && !item.endDate && typeof item.createdAt === 'number') {
+												const createdDate = new Date(item.createdAt);
+												const createdMid = new Date(createdDate.getFullYear(), createdDate.getMonth(), createdDate.getDate()).getTime();
+												const diff = Math.floor((startOfToday().getTime() - createdMid) / MS_PER_DAY);
+												sentence2 = diff <= 0 ? 'Created today' : `Created ${diff} day${diff === 1 ? '' : 's'} ago`;
+											}
+											const lineColor = bgUri ? { color: '#efefef' } : null;
 											return (
-												<Text style={[
-													styles.metaText,
-													bgUri ? styles.cardTextShadow : null,
-													bgUri ? { color: '#efefef' } : null
-												]}>
-													Duration: {days} day{days === 1 ? '' : 's'}
-												</Text>
+												<>
+													<Text style={[styles.metaText, bgUri ? styles.cardTextShadow : null, lineColor]} numberOfLines={3}>{sentence1}</Text>
+													{!!sentence2 && <Text style={[styles.metaText, bgUri ? styles.cardTextShadow : null, lineColor]}>{sentence2}</Text>}
+												</>
 											);
 										})()}
-										{(() => {
-											const info = getDaysLabel(item);
-											if (!info) return null;
-											const accentKinds = new Set(['today', 'current']);
-											const color = bgUri
-												? (info.kind === 'future' ? '#a8c7ff' : accentKinds.has(info.kind) ? '#a3e635' : '#ffffffb3')
-												: (info.kind === 'future'
-													? themeColors.primary
-													: accentKinds.has(info.kind)
-													? themeColors.accent
-													: themeColors.textSecondary);
-											const fontStyle = info.kind === 'current' ? 'italic' : 'normal';
-											return <Text style={[styles.countdownText, { color, fontStyle }, bgUri ? styles.cardTextShadow : null]}>{info.text}</Text>;
-										})()}
-										{!!item.ship && <Text style={[
-											styles.metaText,
-											bgUri ? styles.cardTextShadow : null,
-											bgUri ? { color: '#efefef' } : null
-										]}>Ship: {item.ship}</Text>}
-										{!!item.ports?.length && <Text style={[
-											styles.metaText,
-											bgUri ? styles.cardTextShadow : null,
-											bgUri ? { color: '#efefef' } : null
-										]}>Ports: {item.ports.length}</Text>}
-										{/* Removed in-card Add Log button */}
 									</View>
 								</Pressable>
+								</View>
+							</Swipeable>
 							</View>
 						);
 					}}
 				/>
 			)}
-			{/* Floating bottom-left menu button */}
-			<Pressable
-				onPress={openFabMenu}
-				accessibilityLabel="Open actions menu"
-				style={{
-					position: 'absolute',
-					left: 20,
-					bottom: fabBottom,
-					width: 56,
-					height: 56,
-					borderRadius: 28,
-					backgroundColor: (themeColors as any).btnBg || themeColors.secondary,
-					alignItems: 'center',
-					justifyContent: 'center',
-					shadowColor: '#000',
-					shadowOpacity: 0.25,
-					shadowRadius: 8,
-					shadowOffset: { width: 0, height: 2 },
-					elevation: 6,
-					zIndex: 100,
-				}}
-			>
-				<Ionicons name="menu" size={28} color={(themeColors as any).btnText || themeColors.badgeText} />
-			</Pressable>
 
-			{/* FAB Action Menu */}
-			<Modal
-				visible={fabMenuModalVisible}
-				transparent
-				animationType="fade"
-				onRequestClose={closeFabMenu}
-			>
-				<Pressable style={styles.modalBackdrop} onPress={closeFabMenu} />
-				<Animated.View
-					style={{
-						position: 'absolute',
-						left: 20,
-						bottom: fabBottom + FAB_SIZE + 50,
-						opacity: menuOpacity,
-						transform: [{ translateY: menuTranslate }],
-					}}
-				>
-					<View style={styles.fabMenuCard}>
-						
-						<TouchableOpacity
-							style={styles.pillOption}
-							onPress={() => { closeFabMenu(); router.push('/(tabs)/trips/new' as any); }}
-							accessibilityLabel="Add trip"
-						>
-							<Ionicons name="add-circle-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
-							<Text style={styles.pillText}>Add trip</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={styles.pillOption}
-							onPress={() => { closeFabMenu(); exportAllTripsJSON(); }}
-							accessibilityLabel="Export trips"
-						>
-							<Ionicons name="download-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
-							<Text style={styles.pillText}>Export trips</Text>
-						</TouchableOpacity>
-						<TouchableOpacity
-							style={styles.pillOption}
-							onPress={() => { closeFabMenu(); setShowSortMenu(true); }}
-							accessibilityLabel="Open sort options"
-						>
-							<Ionicons name="swap-vertical-outline" size={20} color={(themeColors as any).btnText || themeColors.badgeText} />
-							<Text style={styles.pillText}>Sort options</Text>
-						</TouchableOpacity>
-					</View>
-				</Animated.View>
-			</Modal>
+			{showUndo && (
+				<View style={{ position: 'absolute', left: 20, right: 20, bottom: Math.max(20, (insets?.bottom||0)+20), backgroundColor: themeColors.card, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: themeColors.menuBorder, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 6 }}>
+					<Text style={{ color: themeColors.text, fontSize: 14, fontWeight: '600' }}>Trip deleted</Text>
+					<Pressable onPress={handleUndo} accessibilityLabel="Undo delete" style={{ paddingHorizontal: 8, paddingVertical: 6 }}>
+						<Text style={{ color: themeColors.primaryDark, fontWeight: '700', fontSize: 14 }}>UNDO</Text>
+					</Pressable>
+				</View>
+			)}
 		</View>
 	);
 }

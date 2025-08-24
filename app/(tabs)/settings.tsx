@@ -5,13 +5,11 @@ import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpaci
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 // forms moved to a dedicated Security screen
-import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { pushTrips, syncTripsBackground } from '../../lib/sync';
 
 export default function SettingsScreen() {
-  const { themePreference, setThemePreference, themeColors } = useTheme();
+  const { themePreference, setThemePreference, themeColors, themePalette, setThemePalette, availablePalettes } = useTheme();
   const { token, logout } = useAuth();
-  const { flags, setFlag, refresh } = useFeatureFlags();
   const [autoBackup, setAutoBackup] = useState<boolean>(false);
   const [lastBackupAt, setLastBackupAt] = useState<number | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
@@ -102,43 +100,23 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        <View style={{ marginTop: 16 }}>
+          <Text style={styles.rowLabel}>Color Palette</Text>
+          <View style={[styles.chips, { flexWrap: 'wrap' }]}>
+            {availablePalettes.map(p => (
+              <TouchableOpacity
+                key={p.key}
+                style={[styles.chip, themePalette === p.key && styles.chipActive]}
+                onPress={() => setThemePalette(p.key)}
+              >
+                <Text style={styles.chipText}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
 
-      {/* Features */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Features</Text>
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Weather on Home</Text>
-          <Switch
-            value={flags.weather}
-            onValueChange={(v) => setFlag('weather', v)}
-            thumbColor={flags.weather ? themeColors.primary : themeColors.menuBorder}
-            trackColor={{ false: themeColors.menuBorder, true: themeColors.primary + '66' }}
-          />
-        </View>
-        <View style={styles.separator} />
-        <View style={styles.row}>
-          <Text style={styles.rowLabel}>Map tab</Text>
-          <Switch
-            value={flags.maps}
-            onValueChange={(v) => setFlag('maps', v)}
-            thumbColor={flags.maps ? themeColors.primary : themeColors.menuBorder}
-            trackColor={{ false: themeColors.menuBorder, true: themeColors.primary + '66' }}
-          />
-        </View>
-        <View style={{ height: 8 }} />
-        <TouchableOpacity
-          onPress={async () => {
-            try {
-              await AsyncStorage.multiRemove(['ff_weather', 'ff_maps']);
-            } catch {}
-            await refresh();
-          }}
-          style={styles.primaryBtn}
-        >
-          <Text style={styles.primaryText}>Reset feature overrides to defaults</Text>
-        </TouchableOpacity>
-      </View>
+  {/* Features card removed per request */}
 
       {/* Backup */}
       <View style={styles.section}>

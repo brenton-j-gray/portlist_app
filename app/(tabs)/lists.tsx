@@ -2,13 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../components/ThemeContext';
 import { deleteList, getLists, uid, upsertList } from '../../lib/storage';
 import { List, ListItem } from '../../types';
 
 // Simple inline create + manage lists (bucket, packing, custom). Future enhancement: dedicated edit screen.
 export default function ListsScreen() {
-  const { themeColors } = useTheme();
+  const { themeColors, colorScheme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [lists, setLists] = useState<List[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
@@ -27,13 +29,13 @@ export default function ListsScreen() {
   ];
 
   const styles = useMemo(() => {
-    const isDark = themeColors.background === '#0E1113';
+  const isDark = colorScheme === 'dark';
     // No text shadow in dark mode per request; keep subtle shadow in light mode only.
     const textShadow = isDark
       ? {}
       : { textShadowColor: 'rgba(0,0,0,0.28)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 1.5 };
     return StyleSheet.create({
-      container: { flex: 1, backgroundColor: themeColors.background, padding: 16 },
+  container: { flex: 1, backgroundColor: themeColors.background, padding: 16, paddingBottom: Math.max(24, (insets?.bottom || 0) + 16) },
       listCard: { borderWidth: 1, borderColor: themeColors.primary, borderRadius: 12, padding: 12, marginBottom: 14, backgroundColor: themeColors.card },
       listTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
       listTitle: { fontSize: 18, fontWeight: '700', color: themeColors.text, flex: 1, marginRight: 8, ...textShadow },
@@ -57,7 +59,7 @@ export default function ListsScreen() {
         paddingVertical: 6,
         marginRight: 8,
         color: themeColors.text,
-        backgroundColor: themeColors.background === '#0E1113' ? '#1F2529' : '#F1F5F9'
+  backgroundColor: isDark ? '#1F2529' : '#F1F5F9'
       },
       chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
       chip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: themeColors.menuBorder, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
@@ -65,7 +67,7 @@ export default function ListsScreen() {
       dragHandle: { padding: 4, marginRight: 6 },
       divider: { height: 1, backgroundColor: themeColors.menuBorder, marginVertical: 4 },
     });
-  }, [themeColors]);
+  }, [themeColors, insets?.bottom, colorScheme]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,7 +101,7 @@ export default function ListsScreen() {
     }));
   }
 
-  const ListItems: React.FC<{ list: List }> = ({ list }) => {
+  const ListItems: React.FC<{ list: List; textColor?: string; fadedColor?: string; accentColor?: string }> = ({ list, textColor, fadedColor, accentColor }) => {
     const [draft, setDraft] = useState('');
     const data = useMemo(() => [...list.items].sort((a,b)=>a.order-b.order), [list.items]);
     const handleAdd = () => { addItem(list.id, draft); setDraft(''); };
@@ -110,13 +112,21 @@ export default function ListsScreen() {
         </Pressable>
         <Pressable
           onPress={() => { toggleItem(list.id, item.id); persist(lists.find(l=>l.id===list.id)!); }}
-          style={[styles.checkbox, { borderColor: themeColors.primary, backgroundColor: item.done ? themeColors.primary : 'transparent' }]}
+          style={[styles.checkbox, { borderColor: accentColor || themeColors.primary, backgroundColor: item.done ? (accentColor || themeColors.primary) : 'transparent' }]}
           accessibilityRole="checkbox"
           accessibilityState={{ checked: !!item.done }}
         >
           {item.done ? <Ionicons name="checkmark" size={16} color={themeColors.background} /> : null}
-  </Pressable>
-  <Text style={[styles.itemText, item.done && { textDecorationLine: 'line-through', color: themeColors.textSecondary }]}>{item.text}</Text>
+        </Pressable>
+        <Text
+          style={[
+            styles.itemText,
+            { color: textColor || themeColors.text },
+            item.done && { textDecorationLine: 'line-through', color: fadedColor || themeColors.textSecondary }
+          ]}
+        >
+          {item.text}
+        </Text>
       </View>
     );
     return (
@@ -154,70 +164,47 @@ export default function ListsScreen() {
 
   const EditableListCard: React.FC<{ item: List }> = ({ item }) => {
     const baseColor = item.color || themeColors.primary;
-    const lighten = (hex: string, amount = 0.9) => {
-      // hex like #RRGGBB
-      if (!/^#?[0-9a-fA-F]{6}$/.test(hex)) return themeColors.card;
-      const h = hex.replace('#','');
-      const r = parseInt(h.slice(0,2),16);
-      const g = parseInt(h.slice(2,4),16);
-      const b = parseInt(h.slice(4,6),16);
-      const lr = Math.round(r + (255 - r) * amount);
-      const lg = Math.round(g + (255 - g) * amount);
-      const lb = Math.round(b + (255 - b) * amount);
-      const toHex = (n:number)=> n.toString(16).padStart(2,'0');
-      return `#${toHex(lr)}${toHex(lg)}${toHex(lb)}`;
+    // Utility: clamp and mix helpers
+    const mix = (a:string,b:string,ratio:number) => {
+      if(!/^#?[0-9a-fA-F]{6}$/.test(a) || !/^#?[0-9a-fA-F]{6}$/.test(b)) return a;
+      const ah=a.replace('#',''); const bh=b.replace('#','');
+      const ar=parseInt(ah.slice(0,2),16), ag=parseInt(ah.slice(2,4),16), ab=parseInt(ah.slice(4,6),16);
+      const br=parseInt(bh.slice(0,2),16), bg=parseInt(bh.slice(2,4),16), bb=parseInt(bh.slice(4,6),16);
+      const rr=Math.round(ar+(br-ar)*ratio), rg=Math.round(ag+(bg-ag)*ratio), rb=Math.round(ab+(bb-ab)*ratio);
+      const hx=(n:number)=>n.toString(16).padStart(2,'0');
+      return `#${hx(rr)}${hx(rg)}${hx(rb)}`;
     };
-    // Derive background: lightened solid in light mode; semi-transparent in dark mode so base darkness shows through
+    const elevate = (hex:string, amount=0.06) => mix(hex,'#ffffff',amount);
+    // New strategy:
+    // Light mode: a softly elevated tinted surface (card mixed toward baseColor a bit, then slightly lightened).
+    // Dark mode: start from card surface, blend in small amount of baseColor (gives identity) then very slight lighten; no translucency to avoid glow.
     const bgColor = (() => {
-      const lightened = lighten(baseColor, 0.9);
-      // Subtle saturation boost: mix a small portion of the original base color back into the lightened value
-      const boost = (lightHex: string, baseHex: string, factor = 0.12) => {
-        if (!/^#?[0-9a-fA-F]{6}$/.test(lightHex) || !/^#?[0-9a-fA-F]{6}$/.test(baseHex)) return lightHex;
-        const lh = lightHex.replace('#','');
-        const bh = baseHex.replace('#','');
-        const lr = parseInt(lh.slice(0,2),16), lg = parseInt(lh.slice(2,4),16), lb = parseInt(lh.slice(4,6),16);
-        const br = parseInt(bh.slice(0,2),16), bg = parseInt(bh.slice(2,4),16), bb = parseInt(bh.slice(4,6),16);
-        const nr = Math.round(lr + (br - lr) * factor);
-        const ng = Math.round(lg + (bg - lg) * factor);
-        const nb = Math.round(lb + (bb - lb) * factor);
-        const hx = (n:number)=> n.toString(16).padStart(2,'0');
-        return `#${hx(nr)}${hx(ng)}${hx(nb)}`;
-      };
-      const boosted = boost(lightened, baseColor, 0.14); // slightly stronger than default for visibility
-      if (themeColors.background === '#0E1113') { // dark mode key
-        const h = boosted.replace('#','');
-        const r = parseInt(h.slice(0,2),16);
-        const g = parseInt(h.slice(2,4),16);
-        const b = parseInt(h.slice(4,6),16);
-        return `rgba(${r},${g},${b},0.82)`; // maintain transparency while using boosted tint
+      if (colorScheme === 'dark') {
+        const tinted = mix(themeColors.card, baseColor, 0.18); // subtle tint
+        return elevate(tinted, 0.04); // tiny lift for separation
       }
-      return boosted;
+      // light mode
+      const tintOnLight = mix('#ffffff', baseColor, 0.08); // gentle wash
+      return elevate(tintOnLight, 0.10);
     })();
     const contrastColor = (() => {
-      // Dark mode: keep black (requested) since card bg is translucent & lightened -> ensures maximal perceived sharpness.
-      if (themeColors.background === '#0E1113') return '#000000';
-      // Use the actual lightened/boosted background (without alpha) to decide contrast rather than original base hue.
-      const solidBg = (() => {
-        if (typeof bgColor === 'string' && bgColor.startsWith('rgba')) {
-          // extract rgb components
-          const m = bgColor.match(/rgba?\((\d+),(\d+),(\d+)/);
-          if (m) {
-            const [r,g,b] = m.slice(1,4).map(Number);
-            const toHex = (n:number)=> n.toString(16).padStart(2,'0');
-            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-          }
+      // Compute luminance of resolved background (remove alpha if present)
+      const parseRgb = (val: string) => {
+        if (val.startsWith('rgba') || val.startsWith('rgb')) {
+          const m = val.match(/rgba?\((\d+),(\d+),(\d+)/);
+          if (m) return [parseInt(m[1],10), parseInt(m[2],10), parseInt(m[3],10)];
         }
-        return typeof bgColor === 'string' ? bgColor : baseColor;
-      })();
-      const h = solidBg.replace('#','');
-      if (h.length !== 6) return themeColors.text;
-      const r = parseInt(h.slice(0,2),16)/255;
-      const g = parseInt(h.slice(2,4),16)/255;
-      const b = parseInt(h.slice(4,6),16)/255;
-      const lin = (c:number)=> c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4);
-      const Lbg = 0.2126*lin(r)+0.7152*lin(g)+0.0722*lin(b);
-      // Lower threshold -> keep dark text longer; only switch to white on truly dark backgrounds.
-      return Lbg < 0.20 ? '#FFFFFF' : '#000000';
+        if (val.startsWith('#') && (val.length === 7)) {
+          return [parseInt(val.slice(1,3),16), parseInt(val.slice(3,5),16), parseInt(val.slice(5,7),16)];
+        }
+        return [0,0,0];
+      };
+      const [cr,cg,cb] = parseRgb(bgColor as string);
+      const lin = (c:number)=>{ const n=c/255; return n<=0.03928? n/12.92 : Math.pow((n+0.055)/1.055,2.4); };
+      const L = 0.2126*lin(cr)+0.7152*lin(cg)+0.0722*lin(cb);
+  // Threshold tuned for semi-translucent dark surfaces
+  if (L < 0.55) return themeColors.text; // use provided theme text color for darker surfaces
+  return '#111';
     })();
     const [editing, setEditing] = useState(false);
     const [draftTitle, setDraftTitle] = useState(item.title);
@@ -254,7 +241,7 @@ export default function ListsScreen() {
               autoFocus
             />
           ) : (
-            <Text style={{ flex:1, fontSize:18, fontWeight:'700', color: contrastColor, ...(themeColors.background === '#0E1113' ? {} : { textShadowColor: 'rgba(0,0,0,0.28)', textShadowOffset:{width:0,height:1}, textShadowRadius:1.5 }) }}>{item.title}</Text>
+            <Text style={{ flex:1, fontSize:18, fontWeight:'700', color: contrastColor }}>{item.title}</Text>
           )}
           <Pressable onPress={() => setShowColorPicker(p => !p)} accessibilityLabel="Change color" style={{ padding:6 }}>
             <Ionicons name="color-palette-outline" size={20} color={themeColors.textSecondary} />
@@ -266,7 +253,7 @@ export default function ListsScreen() {
             <Ionicons name="trash-outline" size={20} color={themeColors.textSecondary} />
           </Pressable>
         </View>
-  <Text style={{ fontSize:12, color: contrastColor+'CC', marginBottom:6, ...(themeColors.background === '#0E1113' ? {} : { textShadowColor: 'rgba(0,0,0,0.28)', textShadowOffset:{width:0,height:1}, textShadowRadius:1.5 }) }}>{item.type.charAt(0).toUpperCase()+item.type.slice(1)} list</Text>
+  <Text style={{ fontSize:12, color: contrastColor+'CC', marginBottom:6 }}>{item.type.charAt(0).toUpperCase()+item.type.slice(1)} list</Text>
         {showColorPicker && (
           <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:8 }}>
             {palette.map(c => (
@@ -274,7 +261,12 @@ export default function ListsScreen() {
             ))}
           </View>
         )}
-        <ListItems list={item} />
+        <ListItems
+          list={item}
+          textColor={contrastColor}
+          fadedColor={contrastColor === '#111' ? '#585d63' : 'rgba(255,255,255,0.7)'}
+          accentColor={baseColor}
+        />
       </View>
     );
   };
@@ -335,6 +327,7 @@ export default function ListsScreen() {
           renderItem={({ item }) => (
             <EditableListCard item={item} />
           )}
+          contentContainerStyle={{ paddingBottom: Math.max(40, (insets?.bottom || 0) + 24) }}
         />
       )}
     </View>

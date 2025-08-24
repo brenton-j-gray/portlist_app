@@ -104,12 +104,15 @@ export default function TabsLayout() {
 
 // Floating glossy central Home button
 function CentralHomeButton({ selected: _selectedFromTabs, onPress }: { selected?: boolean; onPress?: () => void }) {
-  const { themeColors } = useTheme();
+  const { themeColors, colorScheme } = useTheme();
   const pathname = usePathname();
   const selected = pathname === '/'; // derive explicitly to avoid timing issues with custom tabBarButton
   const bg = selected ? themeColors.primary : (themeColors.primaryDark ?? themeColors.primary);
   const iconColor = themeColors.btnText;
-  const ringColor = selected ? themeColors.accent : themeColors.card;
+  // Ring (outer border) should match tab bar upper border color in dark mode per request
+  const ringColor = colorScheme === 'dark'
+    ? themeColors.menuBorder
+    : (selected ? themeColors.accent : themeColors.card);
   return (
     <Pressable
       onPress={onPress}

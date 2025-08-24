@@ -51,6 +51,31 @@ npx eas build --platform android --profile development
 
 Note: Native changes (like API keys) require reinstalling the dev client.
 
+## Location Search (Google Places)
+
+The note screens will use the Google Places Autocomplete + Details APIs (if a key is provided) for richer location suggestions (names + formatted addresses). If no key is set the app falls back to the built‑in `expo-location` geocoder.
+
+Setup:
+
+1. Create a restricted API key in Google Cloud Console with the following APIs enabled:
+   - Places API
+   - Maps SDK for Android (if using maps)
+   - Maps SDK for iOS (if using maps)
+2. Restrict the key by package name + SHA (Android) and bundle ID (iOS) for native builds, and optionally HTTP referrers if you build a web version.
+3. Expose the key to the app (public – do NOT reuse a secret server key):
+
+```pwsh
+$env:EXPO_PUBLIC_GOOGLE_PLACES_KEY='YOUR_RESTRICTED_KEY'; npx expo start --dev-client
+```
+
+4. Rebuild your dev client if you changed native map keys.
+
+Notes:
+- Only the first 5 predictions request place details (to limit quota usage).
+- Results are cached in-memory per session to reduce network calls while typing.
+- Fallback geocoder still runs when Places returns no results (or key absent).
+
+
 ## Get a fresh project
 
 When you're ready, run:

@@ -38,6 +38,13 @@ const curatedFallback: PortEntry[] = [
   { name: 'Port Canaveral', country: 'US', regionCode: 'FL', lat: 28.4101, lng: -80.6188, aliases: ['Cape Canaveral', 'Canaveral Cruise Port'], source: 'curated', kind: 'port', isCruise: true },
   { name: 'Nassau', country: 'BS', lat: 25.0478, lng: -77.3554, aliases: ['Nassau Cruise Port'], source: 'curated', kind: 'port', isCruise: true },
   { name: 'Cozumel', country: 'MX', lat: 20.4230, lng: -86.9223, aliases: ['Cozumel Cruise Port', 'Puerto Maya', 'International Pier'], source: 'curated', kind: 'port', isCruise: true },
+  // Hawaii (added to ensure availability even if external JSON fails to load)
+  { name: 'Honolulu', country: 'US', regionCode: 'HI', lat: 21.3069, lng: -157.8665, aliases: ['Honolulu Harbor', 'Honolulu, HI'], source: 'curated', kind: 'port', isCruise: true },
+  { name: 'Hilo', country: 'US', regionCode: 'HI', lat: 19.7297, lng: -155.0900, aliases: ['Hilo, HI', 'Port of Hilo'], source: 'curated', kind: 'port', isCruise: true },
+  { name: 'Kona', country: 'US', regionCode: 'HI', lat: 19.6397, lng: -155.9969, aliases: ['Kailua-Kona', 'Kona Tender'], source: 'curated', kind: 'port', isCruise: true },
+  { name: 'Lahaina', country: 'US', regionCode: 'HI', lat: 20.8783, lng: -156.6825, aliases: ['Lahaina Tender'], source: 'curated', kind: 'port', isCruise: true },
+  { name: 'Kahului', country: 'US', regionCode: 'HI', lat: 20.8947, lng: -156.4700, aliases: ['Kahului Harbor', 'Maui'], source: 'curated', kind: 'port', isCruise: true },
+  { name: 'Nawiliwili', country: 'US', regionCode: 'HI', lat: 21.9560, lng: -159.3560, aliases: ['Kauai', 'Nawiliwili Harbor'], source: 'curated', kind: 'port', isCruise: true },
 ];
 const curatedPorts: PortEntry[] = Array.isArray(curatedJson) && curatedJson.length > 0 ? curatedJson as PortEntry[] : curatedFallback;
 
@@ -171,6 +178,7 @@ export function searchPorts(query: string, cache: PortEntry[], limit = 10, recen
   if (!query.trim()) return [];
   const recentSet = new Set((recentNames || []).map(n => normalize(n)).slice(0, 24));
   const pool = [...cache, ...curatedPorts];
+  const short = query.trim().length <= 3; // for short prefixes, relax constraints
   const isPorty = (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier|dock|quay|marina)\b/i.test(s);
   const qNorm = normalize(query);
   const scored = pool.map(p => {
@@ -186,9 +194,20 @@ export function searchPorts(query: string, cache: PortEntry[], limit = 10, recen
       const code = regionHint[1].toUpperCase();
       if (p.regionCode === code || p.country === code) raw += 0.05;
     }
-    return { p, s: Math.min(1, raw), porty };
-  }).filter(x => x.porty && x.s >= 0.45); // slightly lower threshold due to refined scoring
+    const startsWith = normalize(p.name).startsWith(qNorm) || (p.aliases || []).some(a => normalize(a).startsWith(qNorm));
+    return { p, s: Math.min(1, raw), porty, startsWith };
+  }).filter(x => {
+    if (short) {
+      // For very short queries, allow prefix matches even if not yet classified porty
+      if (x.startsWith) return true;
+    }
+    return x.porty && x.s >= (short ? 0.30 : 0.45);
+  });
   scored.sort((a, b) => (b.s - a.s));
+  // Stable promote prefix matches for short queries
+  if (short) {
+    scored.sort((a, b) => (Number(b.startsWith) - Number(a.startsWith)) || (b.s - a.s));
+  }
   const dedup = new Map<string, PortEntry>();
   for (const { p, s } of scored) {
     const key = normalize(p.name);
