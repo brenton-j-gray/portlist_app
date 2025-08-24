@@ -6,7 +6,7 @@ import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Scro
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { formatDateWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 import { useTheme } from '../../../components/ThemeContext';
-import { loadPortsCache, PortEntry, resolvePortByName, searchPorts, searchPortsOnline, upsertCachedPort } from '../../../lib/ports';
+import { loadPortsCache, PortEntry, resolvePortByName, unifiedPortSearch, upsertCachedPort } from '../../../lib/ports';
 import { deleteTrip, getTripById, upsertTrip } from '../../../lib/storage';
 import { Trip } from '../../../types';
 function parseLocal(dateStr: string | undefined): Date | null {
@@ -91,41 +91,13 @@ export default function EditTripScreen() {
     let cancelled = false;
     const handle = setTimeout(async () => {
       try {
-  const qLower = q.toLowerCase();
-  const localHits = searchPorts(q, portsCache, 6);
-  // If local hits are few, fetch online fallback
-  let merged = localHits.slice();
-        if (localHits.length < 6) {
-          const online = await searchPortsOnline(q, 5);
-          // Merge by name+country, prefer local first
-          const seen = new Set(localHits.map(p => `${p.name.toLowerCase()}|${(p.country||'').toLowerCase()}`));
-          for (const o of online) {
-            const key = `${o.name.toLowerCase()}|${(o.country||'').toLowerCase()}`;
-            if (!seen.has(key)) { merged.push(o); seen.add(key); }
-          }
-        }
-  // Re-rank merged: prefer port/harbor-like names
-  const isPorty = (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier)\b/i.test(s);
-  // Enhanced ranking: prefix match > substring match > porty boost > alphabetical
-  merged.sort((a, b) => {
-    const aName = a.name.toLowerCase();
-    const bName = b.name.toLowerCase();
-    const aPrefix = aName.startsWith(qLower) ? 1 : 0;
-    const bPrefix = bName.startsWith(qLower) ? 1 : 0;
-    if (bPrefix !== aPrefix) return bPrefix - aPrefix;
-    const aSub = aName.includes(qLower) ? 1 : 0;
-    const bSub = bName.includes(qLower) ? 1 : 0;
-    if (bSub !== aSub) return bSub - aSub;
-    const aPorty = isPorty(a.name) ? 1 : 0;
-    const bPorty = isPorty(b.name) ? 1 : 0;
-    if (bPorty !== aPorty) return bPorty - aPorty;
-    return a.name.localeCompare(b.name);
-  });
-        if (!cancelled) setPortSuggestions(merged.slice(0, 10));
+        // unified search: master dataset + google places + nominatim fallback
+        const results = await unifiedPortSearch(q, portsCache, 10);
+        if (!cancelled) setPortSuggestions(results);
       } catch {
         if (!cancelled) setPortSuggestions([]);
       }
-    }, 200);
+    }, 220);
     return () => { cancelled = true; clearTimeout(handle); };
   }, [newPort, portsCache]);
 

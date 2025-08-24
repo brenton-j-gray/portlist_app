@@ -9,11 +9,13 @@ import React, { useEffect, useMemo } from 'react';
 import { AppState, BackHandler, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 // Gesture handler root for drag gestures and other detectors
+import { StripeProvider } from '@stripe/stripe-react-native';
 import { AppLockProvider } from '../components/AppLockContext';
 import { AuthProvider, useAuth } from '../components/AuthContext';
 import { FeatureFlagsProvider } from '../components/FeatureFlagsContext';
 import { PreferencesProvider } from '../components/PreferencesContext';
 import { ThemeProvider, useTheme } from '../components/ThemeContext';
+import { ToastProvider } from '../components/ToastContext';
 import { pushTrips, syncTripsBackground } from '../lib/sync';
 
 class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error?: Error }> {
@@ -148,6 +150,8 @@ function AppLayoutInner() {
   <View style={{ flex: 1, backgroundColor: themeColors.background }}>
   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} animated />
   <PreferencesProvider>
+  <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PK || 'pk_test_placeholder'}>
+  <ToastProvider>
   <Stack screenOptions={{
         headerStyle: { backgroundColor: themeColors.card },
         headerTitleStyle: { color: themeColors.text },
@@ -226,6 +230,8 @@ function AppLayoutInner() {
           ) : null
         ) }} />
   </Stack>
+  </ToastProvider>
+  </StripeProvider>
   </PreferencesProvider>
       </View>
   );

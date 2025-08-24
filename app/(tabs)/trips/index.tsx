@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 
 import { useTheme } from '../../../components/ThemeContext';
-import { exportAllTripsPDF } from '../../../lib/exportTrip';
+import { useToast } from '../../../components/ToastContext';
+import { exportAllTrips, ExportFormat } from '../../../lib/exportTrip';
 import { getTrips, saveTrips } from '../../../lib/storage';
 import { Trip } from '../../../types';
 
@@ -60,7 +61,19 @@ export default function TripsScreen() {
 	const { prefs, setPref } = usePreferences();
 	const insets = useSafeAreaInsets();
 	const [trips, setTrips] = useState<Trip[]>([]);
-	const [sortBy, setSortBy] = useState<'created' | 'title' | 'startDate'>(prefs.defaultTripsSort);
+			const [sortBy, setSortBy] = useState<'created' | 'title' | 'startDate'>(prefs.defaultTripsSort);
+		const [showExportMenu, setShowExportMenu] = useState(false);
+			const { showProgress, update } = useToast();
+			const handleExportAll = useCallback(async () => {
+				const id = 'export_all';
+				showProgress(id, 'Preparing export…');
+				try {
+					await exportAllTrips(prefs.exportFormat as ExportFormat || 'pdf');
+					update(id, 'Export complete', 'success', 2500);
+				} catch {
+					update(id, 'Export failed', 'error', 4000);
+				}
+			}, [prefs.exportFormat, showProgress, update]);
 	useEffect(() => { setSortBy(prefs.defaultTripsSort); }, [prefs.defaultTripsSort]);
 	const [tab, setTab] = useState<'inprogress' | 'upcoming' | 'completed'>('upcoming');
 	const [query, setQuery] = useState('');
@@ -602,7 +615,7 @@ export default function TripsScreen() {
 				<View style={[styles.inlineAddRow, { justifyContent: 'space-between', position: 'relative' }]}> 
 					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
 						<Pressable
-							onPress={() => exportAllTripsPDF()}
+							onPress={handleExportAll}
 							accessibilityLabel="Export all trips"
 							style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, alignItems: 'center', justifyContent: 'center' }}
 						>
@@ -623,6 +636,13 @@ export default function TripsScreen() {
 						accessibilityLabel="Open sort options"
 					>
 						<Ionicons name="swap-vertical-outline" size={20} color={themeColors.primaryDark} />
+					</Pressable>
+					<Pressable
+						style={{ paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.primary, alignItems: 'center', justifyContent: 'center', marginLeft: 10 }}
+						onPress={() => setShowExportMenu(true)}
+						accessibilityLabel="Choose export format"
+					>
+						<Ionicons name="document-text-outline" size={20} color={themeColors.primaryDark} />
 					</Pressable>
 				</View>
 
@@ -657,7 +677,21 @@ export default function TripsScreen() {
 						</TouchableOpacity>
 					</View>
 				</View>
-			</Modal>
+						</Modal>
+						<Modal visible={showExportMenu} transparent animationType="fade" onRequestClose={() => setShowExportMenu(false)}>
+								<Pressable style={styles.modalBackdrop} onPress={() => setShowExportMenu(false)} />
+								<View style={styles.modalCenterWrap} pointerEvents="box-none">
+										<View style={styles.modalCard}>
+												<Text style={styles.modalTitle}>Export Format</Text>
+												{(['pdf','json','txt','docx'] as ExportFormat[]).map(fmt => (
+													<TouchableOpacity key={fmt} style={[styles.modalOption, prefs.exportFormat === fmt && styles.modalOptionActive]}
+														onPress={() => { setPref('exportFormat', fmt as any); setShowExportMenu(false); }} accessibilityLabel={`Use ${fmt.toUpperCase()} format`}>
+														<Text style={[styles.modalOptionText, prefs.exportFormat === fmt && styles.modalOptionTextActive]}>{fmt.toUpperCase()}</Text>
+													</TouchableOpacity>
+												))}
+										</View>
+								</View>
+						</Modal>
 
 			{/* Status menu modal removed in favor of folder tabs */}
 

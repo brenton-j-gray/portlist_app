@@ -94,6 +94,15 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="donate"
+        options={{
+          title: 'Donate',
+          tabBarIcon: ({ color, focused, size }) => (
+            <Ionicons name={focused ? 'card' : 'card-outline'} color={color} size={size ?? 24} />
+          ),
+        }}
+      />
   {/* Hidden screen for editing profile; navigable from Settings */}
   <Tabs.Screen name="profile" options={{ href: null, title: 'Edit Profile' }} />
   {/* Hidden screen for security settings; navigable from Settings */}

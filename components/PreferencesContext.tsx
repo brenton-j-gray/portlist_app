@@ -9,6 +9,7 @@ export type UserPreferences = {
   windUnit: 'knots' | 'mph';
   defaultMapType: 'standard' | 'hybrid';
   defaultTripsSort: 'created' | 'title' | 'startDate';
+  exportFormat?: 'pdf' | 'json' | 'txt' | 'docx';
 };
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -19,6 +20,7 @@ const DEFAULT_PREFS: UserPreferences = {
   windUnit: 'knots',
   defaultMapType: 'standard',
   defaultTripsSort: 'created',
+  exportFormat: 'pdf',
 };
 
 interface PrefsContextValue {
@@ -40,6 +42,7 @@ async function loadAll(): Promise<UserPreferences> {
       'pref_unit_wind_v1',
       'pref_default_map_type_v1',
       'pref_trips_sort_v1',
+  'pref_export_format_v1',
     ]);
     const map = Object.fromEntries(keys) as Record<string, string | null>;
     return {
@@ -50,6 +53,7 @@ async function loadAll(): Promise<UserPreferences> {
       windUnit: (map['pref_unit_wind_v1'] === 'mph' ? 'mph' : 'knots'),
       defaultMapType: (map['pref_default_map_type_v1'] === 'hybrid' ? 'hybrid' : 'standard'),
       defaultTripsSort: (map['pref_trips_sort_v1'] === 'title' || map['pref_trips_sort_v1'] === 'startDate') ? map['pref_trips_sort_v1'] as any : 'created',
+  exportFormat: (map['pref_export_format_v1'] === 'json' || map['pref_export_format_v1'] === 'txt' || map['pref_export_format_v1'] === 'docx') ? map['pref_export_format_v1'] as any : 'pdf',
     };
   } catch {
     return DEFAULT_PREFS;
@@ -80,6 +84,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         windUnit: 'pref_unit_wind_v1',
         defaultMapType: 'pref_default_map_type_v1',
         defaultTripsSort: 'pref_trips_sort_v1',
+  exportFormat: 'pref_export_format_v1',
       };
       await AsyncStorage.setItem(storageKeyMap[key], String(value));
     } catch {}

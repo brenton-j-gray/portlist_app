@@ -9,7 +9,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NoteCard } from '../../../components/NoteCard';
 import { formatDateRangeWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 import { useTheme } from '../../../components/ThemeContext';
-import { exportTripPDF } from '../../../lib/exportTrip';
+import { useToast } from '../../../components/ToastContext';
+import { ExportFormat, exportTrip } from '../../../lib/exportTrip';
 import { getTripById } from '../../../lib/storage';
 import { Note, Trip } from '../../../types';
 
@@ -18,7 +19,8 @@ function computeDurationDays(start?: string, end?: string): number | null { if(!
 
 export default function TripDetail(){
   const { themeColors } = useTheme();
-  const { prefs } = usePreferences();
+  const { prefs, setPref } = usePreferences();
+  const { showProgress, update } = useToast();
   const { id } = useLocalSearchParams<{id:string}>();
   const [trip,setTrip]=useState<Trip|undefined>();
   const [loading,setLoading]=useState(true);
@@ -30,6 +32,18 @@ export default function TripDetail(){
   const undoTimerRef=useRef<number|null>(null);
   const insets=useSafeAreaInsets();
   const [sortDesc,setSortDesc]=useState(false);
+  const [showExportMenu,setShowExportMenu]=useState(false);
+  const handleExport = useCallback(async () => {
+    if (!trip) return;
+    const id = 'export_trip_'+trip.id;
+    showProgress(id, 'Preparing export…');
+    try {
+      await exportTrip(trip, (prefs.exportFormat as ExportFormat)||'pdf');
+      update(id, 'Export complete', 'success', 2500);
+    } catch {
+      update(id, 'Export failed', 'error', 4000);
+    }
+  }, [trip, prefs.exportFormat, showProgress, update]);
 
   const sortedDays = useMemo(()=>{
     if(!trip) return [] as Note[];
@@ -72,8 +86,11 @@ export default function TripDetail(){
         <View style={{flexDirection:'row',alignItems:'center',width:'100%'}}>
           <Text style={[styles.headerTitle,{flex:1,marginRight:12}]} numberOfLines={2}>{trip.title}</Text>
           <View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Export trip" onPress={()=>exportTripPDF(trip)}>
+            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Export trip" onPress={handleExport}>
               <Ionicons name="download-outline" size={18} color="#fff" />
+            </Pressable>
+            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Choose export format" onPress={()=>setShowExportMenu(true)}>
+              <Ionicons name="document-text-outline" size={18} color="#fff" />
             </Pressable>
             <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Edit trip" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/edit' as any, params:{id:trip.id}} as any)}>
               <Ionicons name="create-outline" size={20} color="#fff" />
@@ -132,6 +149,23 @@ export default function TripDetail(){
           <View style={{flexDirection:'row',justifyContent:'flex-end',gap:16,marginTop:10}}>
             <Pressable accessibilityLabel="Close ports list" onPress={()=>setShowPortsModal(false)} style={{paddingVertical:8,paddingHorizontal:14}}>
               <Text style={{color:themeColors.primary,fontWeight:'700',fontSize:16}}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={showExportMenu} transparent animationType='fade' onRequestClose={()=>setShowExportMenu(false)}>
+        <Pressable style={{flex:1,backgroundColor:'rgba(0,0,0,0.4)'}} onPress={()=>setShowExportMenu(false)} />
+        <View style={{position:'absolute',left:0,right:0,top:'35%',marginHorizontal:40,backgroundColor:themeColors.card,borderRadius:18,padding:20,borderWidth:1,borderColor:themeColors.primary}}>
+          <Text style={{fontSize:18,fontWeight:'700',color:themeColors.text,marginBottom:12}}>Export Format</Text>
+          {(['pdf','json','txt','docx'] as ExportFormat[]).map(fmt=> (
+            <Pressable key={fmt} onPress={()=>{ setPref('exportFormat', fmt as any); setShowExportMenu(false); }} accessibilityLabel={`Select ${fmt.toUpperCase()} format`} style={{paddingVertical:10,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+              <Text style={{fontSize:15,fontWeight:'600',color:themeColors.text}}>{fmt.toUpperCase()}</Text>
+              {prefs.exportFormat===fmt && <Ionicons name='checkmark' size={18} color={themeColors.primary} />}
+            </Pressable>
+          ))}
+          <View style={{flexDirection:'row',justifyContent:'flex-end',marginTop:4}}>
+            <Pressable onPress={()=>setShowExportMenu(false)} style={{paddingVertical:8,paddingHorizontal:14}}>
+              <Text style={{fontSize:15,fontWeight:'700',color:themeColors.primary}}>Close</Text>
             </Pressable>
           </View>
         </View>
