@@ -1,14 +1,14 @@
 {
   "expo": {
-  "name": "Portlist",
-  "slug": "portlist",
+    "name": "Portlist",
+    "slug": "portlist",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-  "scheme": "portlist",
+    "scheme": "portlist",
     "userInterfaceStyle": "automatic",
-  "newArchEnabled": false,
-  "ios": {
+    "newArchEnabled": false,
+    "ios": {
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Allow access to select photos for your notes.",
@@ -16,17 +16,16 @@
         "NSCameraUsageDescription": "Allow taking photos for your notes.",
         "NSLocationWhenInUseUsageDescription": "Allow using your location to tag notes with a place.",
         "ITSAppUsesNonExemptEncryption": false
-  },
-      "bundleIdentifier": "com.Mystk.travellog"
+      },
+      "bundleIdentifier": "com.sydian.portlist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      
       "edgeToEdgeEnabled": true,
-      "package": "com.mysttpro.cruisejournalpro",
+      "package": "com.sydian.portlist",
       "permissions": [
         "CAMERA",
         "READ_MEDIA_IMAGES",
@@ -51,11 +50,11 @@
     },
     "extra": {
       "router": {},
-  "EXPO_PUBLIC_API_URL": "http://192.168.4.114:4000",
+      "EXPO_PUBLIC_API_URL": "http://192.168.4.114:4000",
       "eas": {
-        "projectId": "cd173d24-17cd-4986-add4-fdd48f48ef78"
+        "projectId": "9cacb25f-e73d-4a0a-97fa-bcdf85e66c37"
       }
     },
-    "owner": "mysttpro"
+    "owner": "dev_sydian"
   }
 }
