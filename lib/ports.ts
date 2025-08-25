@@ -356,7 +356,7 @@ export async function searchPortsOnline(query: string, limit = 5): Promise<PortE
     const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=${limit}`;
     const res = await fetch(url, {
       headers: {
-        'User-Agent': 'cruise-journal-pro/1.0',
+  'User-Agent': 'portlist/1.0',
         'Accept-Language': 'en',
       },
     } as any);

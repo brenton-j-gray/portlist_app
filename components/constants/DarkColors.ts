@@ -1,4 +1,4 @@
-// Centralized dark mode color constants for Cruise Journal Pro
+// Centralized dark mode color constants for Portlist
 // Dark-complementary to brand palette
 export const DarkColors = {
   // Core hues adapted for dark UI

@@ -162,7 +162,7 @@ router.get('/2fa/setup', requireAuth, async (req, res) => {
     const secret = authenticator.generateSecret();
     user.totpTempSecret = secret;
     await user.save();
-    const otpauthUri = authenticator.keyuri(user.email, 'Cruise Journal Pro', secret);
+  const otpauthUri = authenticator.keyuri(user.email, 'Portlist', secret);
     res.json({ secret, otpauthUri });
   } catch (e) {
     console.error('2fa_setup_error', e);

@@ -1,4 +1,4 @@
-// Centralized color constants for Cruise Journal Pro
+// Centralized color constants for Portlist
 // Brand: Playful ocean hues with refined accents
 // Primary: Deep Sea Blue #1E4D6B
 // Secondary: Aqua Mist #7FC8F8

@@ -60,7 +60,7 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock Cruise Journal Pro',
+  promptMessage: 'Unlock Portlist',
         cancelLabel: Platform.OS === 'ios' ? 'Cancel' : 'CANCEL',
         fallbackLabel: Platform.OS === 'ios' ? 'Use Passcode' : undefined,
         disableDeviceFallback: false,

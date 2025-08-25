@@ -150,7 +150,11 @@ function AppLayoutInner() {
   <View style={{ flex: 1, backgroundColor: themeColors.background }}>
   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} animated />
   <PreferencesProvider>
-  <StripeProvider publishableKey={process.env.EXPO_PUBLIC_STRIPE_PK || 'pk_test_placeholder'}>
+  <StripeProvider
+    publishableKey={process.env.EXPO_PUBLIC_STRIPE_PK || 'pk_test_placeholder'}
+    merchantIdentifier={process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID || 'merchant.com.example.portlist'}
+    urlScheme="portlist"
+  >
   <ToastProvider>
   <Stack screenOptions={{
         headerStyle: { backgroundColor: themeColors.card },

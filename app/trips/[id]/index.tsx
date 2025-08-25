@@ -12,6 +12,7 @@ import { useTheme } from '../../../components/ThemeContext';
 import { useToast } from '../../../components/ToastContext';
 import { ExportFormat, exportTrip } from '../../../lib/exportTrip';
 import { getTripById } from '../../../lib/storage';
+import * as Widget from '../../../lib/widget';
 import { Note, Trip } from '../../../types';
 
 function parseLocalFromString(dateStr: string | undefined): Date | null { if (!dateStr) return null; const ymd=String(dateStr).slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(ymd)){ const [y,m,d]=ymd.split('-').map(Number); return new Date(y,(m||1)-1,d||1);} const d=new Date(dateStr); return isNaN(d.getTime())?null:d; }
@@ -91,6 +92,12 @@ export default function TripDetail(){
             </Pressable>
             <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Choose export format" onPress={()=>setShowExportMenu(true)}>
               <Ionicons name="document-text-outline" size={18} color="#fff" />
+            </Pressable>
+            {/* Set countdown widget (Android) */}
+            <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Set countdown widget" onPress={async()=>{
+              try { if (trip.startDate) await Widget.setCountdownTrip(trip); else await Widget.clearCountdownTrip(); } catch {/* ignore */}
+            }}>
+              <Ionicons name="hourglass-outline" size={18} color="#fff" />
             </Pressable>
             <Pressable style={[styles.headerSmallBtn,{marginTop:0}]} accessibilityLabel="Edit trip" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/edit' as any, params:{id:trip.id}} as any)}>
               <Ionicons name="create-outline" size={20} color="#fff" />

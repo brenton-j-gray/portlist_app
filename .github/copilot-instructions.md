@@ -1,4 +1,4 @@
-# Copilot Instructions for cruise-journal-pro
+# Copilot Instructions for Portlist
 
 ## Project Overview
 - This is an Expo React Native app using file-based routing (see the `app/` directory).

@@ -1,4 +1,4 @@
-# 🚢 Cruise Journal Pro (WORKING TITLE) – Copilot Features Guide
+# 🚢 Portlist – Copilot Features Guide
 
 This file explains **why** each feature exists, so Copilot can generate code with the right intent.
 

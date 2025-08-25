@@ -1,20 +1,20 @@
 {
   "expo": {
-    "name": "cruise-journal-pro",
-    "slug": "cruise-journal-pro",
+  "name": "Portlist",
+  "slug": "portlist",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cruisejournalpro",
+  "scheme": "portlist",
     "userInterfaceStyle": "automatic",
   "newArchEnabled": false,
   "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Allow access to select photos for your logs.",
+        "NSPhotoLibraryUsageDescription": "Allow access to select photos for your notes.",
         "NSPhotoLibraryAddUsageDescription": "Allow saving photos you take to your Photo Library.",
-        "NSCameraUsageDescription": "Allow taking photos for your logs.",
-        "NSLocationWhenInUseUsageDescription": "Allow using your location to tag logs with a place.",
+        "NSCameraUsageDescription": "Allow taking photos for your notes.",
+        "NSLocationWhenInUseUsageDescription": "Allow using your location to tag notes with a place.",
         "ITSAppUsesNonExemptEncryption": false
   },
       "bundleIdentifier": "com.Mystk.travellog"

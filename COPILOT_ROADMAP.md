@@ -1,4 +1,4 @@
-# 🚢 Cruise Journal Pro (WORKING TITLE) – Feature Roadmap
+# 🚢 Portlist – Feature Roadmap
 
 ## 🎯 MVP (Minimum Viable Product)
 Focus: Let users log a cruise trip day by day with basic memory capture.

@@ -18,7 +18,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function fetchJson(url, opts = {}) {
   const res = await fetch(url, {
     headers: {
-      'User-Agent': 'cruise-journal-pro/curator (+https://example.com)'.slice(0, 200),
+  'User-Agent': 'portlist/curator (+https://example.com)'.slice(0, 200),
       'Accept': 'application/json'
     },
     ...opts
