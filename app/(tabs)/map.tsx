@@ -6,10 +6,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { formatDateWithPrefs, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
-import { loadPortsCache, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort } from '../../lib/ports';
+import { useToast } from '../../components/ToastContext';
+import { clearPortsCache, fuzzyMatch, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort } from '../../lib/ports';
+import { PortsCache } from '../../lib/portsCache';
 import { getTrips, uid, upsertTrip } from '../../lib/storage';
 import type { Trip } from '../../types';
 
@@ -17,7 +18,7 @@ export default function MapScreen() {
   const { themeColors, colorScheme } = useTheme();
   const { prefs, setPref } = usePreferences();
   const insets = useSafeAreaInsets();
-  const { flags } = useFeatureFlags();
+  // maps feature flag removed; map should always be enabled
   const routeColor = useMemo(() => (colorScheme === 'dark' ? themeColors.highlight : themeColors.accent), [colorScheme, themeColors]);
   const ROUTE_STROKE_WIDTH = 3;
   const ARROW_HEIGHT = 13;
@@ -35,6 +36,7 @@ export default function MapScreen() {
   const [pendingPlaceName, setPendingPlaceName] = useState<string | null>(null);
   const [addingTripId, setAddingTripId] = useState<string | null>(null);
   const didRestoreInitialRegion = useRef(false);
+  const toast = useToast();
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: themeColors.background, paddingBottom: Math.max(12, insets?.bottom || 0) },
@@ -56,7 +58,7 @@ export default function MapScreen() {
   }), [themeColors, colorScheme, insets?.bottom]);
 
   const refresh = useCallback(async () => {
-    const [t, cache] = await Promise.all([getTrips(), loadPortsCache()]);
+  const [t, cache] = await Promise.all([getTrips(), PortsCache.load()]);
     setTrips(t); setPortCache(cache);
   }, []);
   useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
@@ -70,7 +72,7 @@ export default function MapScreen() {
   function isTripCompleted(t: Trip) { if (t.completed) return true; if (!t.endDate) return false; return parseLocalYmd(t.endDate).getTime() < startOfToday().getTime(); }
   function isTripInProgress(t: Trip) { if (t.completed || !t.startDate) return false; const today = startOfToday().getTime(); const startTs = parseLocalYmd(t.startDate).getTime(); const endTs = t.endDate ? parseLocalYmd(t.endDate).getTime() : undefined; if (today < startTs) return false; if (typeof endTs === 'number' && today > endTs) return false; return true; }
 
-  const mapDisabled = !flags.maps;
+  // map always enabled
 
   const initial: Region = useMemo(() => ({ latitude: 20, longitude: 0, latitudeDelta: 80, longitudeDelta: 80 }), []);
   useEffect(() => { let mounted = true; (async () => { if (didRestoreInitialRegion.current) return; try { const saved = await AsyncStorage.getItem(REGION_KEY); if (!mounted) return; if (saved) { const r = JSON.parse(saved) as Region; setRegion(prev => prev ?? r); setTimeout(() => { if (!didRestoreInitialRegion.current) { mapRef.current?.animateToRegion(r, 0); didRestoreInitialRegion.current = true; } }, 0); } else { if (mounted && !region) { setRegion(initial); didRestoreInitialRegion.current = true; } } } catch {} })(); return () => { mounted = false; }; }, [REGION_KEY, initial, region]);
@@ -149,7 +151,12 @@ export default function MapScreen() {
   type PortMarker = { key: string; lat: number; lng: number; title: string; tripId: string };
   type TripPath = { key: string; coords: { latitude: number; longitude: number }[]; tripId: string };
   type ArrowMarker = { key: string; lat: number; lng: number; angle: number; tripId: string };
+  const portsFingerprint = useMemo(() => filteredTrips.map(t => `${t.id}:${(Array.isArray(t.ports) ? t.ports.join('|') : '')}`).join(';'), [filteredTrips]);
+
+  // include portsFingerprint to force recompute when trip.ports order/content changes
   const { portMarkers, tripPaths, arrowMarkers, unresolvedPorts } = useMemo(() => {
+    // ensure portsFingerprint is treated as a used dependency so the memo invalidates when it changes
+    void portsFingerprint;
     const ports: PortMarker[] = []; const paths: TripPath[] = []; const arrows: ArrowMarker[] = []; const unresolved: { port: string; tripId: string }[] = [];
     const norm = (s?: string | null) => (s || '').trim().toLowerCase();
     const toRad = (d: number) => d * Math.PI / 180; const toDeg = (r: number) => r * 180 / Math.PI;
@@ -163,10 +170,21 @@ export default function MapScreen() {
       list.forEach((p, idx) => {
         const pn = norm(p); const primary = norm(p.split(',')[0] || p); if (!pn) return;
         const hit = trip.days.find(d => { if (!d.location) return false; const ln = norm(d.locationName); return (ln.includes(pn) || pn.includes(ln) || (primary ? (ln.includes(primary) || primary.includes(ln)) : false)); });
-        if (hit && hit.location && typeof hit.location.lat === 'number' && typeof hit.location.lng === 'number') { ports.push({ key: `port_${trip.id}_${idx}`, lat: hit.location.lat, lng: hit.location.lng, title: p, tripId: trip.id }); segmentEndpoints.push({ latitude: hit.location.lat, longitude: hit.location.lng }); }
-        else {
-          const resolved = resolvePortByName(p, portCache); if (resolved) { ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: resolved.name, tripId: trip.id }); segmentEndpoints.push({ latitude: resolved.lat, longitude: resolved.lng }); }
-          else { unresolved.push({ port: p, tripId: trip.id }); }
+        if (hit && hit.location && typeof hit.location.lat === 'number' && typeof hit.location.lng === 'number') {
+          // Use explicit note location
+          ports.push({ key: `port_${trip.id}_${idx}`, lat: hit.location.lat, lng: hit.location.lng, title: p, tripId: trip.id });
+          segmentEndpoints.push({ latitude: hit.location.lat, longitude: hit.location.lng });
+          console.debug && console.debug(`[map] trip ${trip.id} port[${idx}] '${p}' -> using trip day location ${hit.location.lat},${hit.location.lng}`);
+        } else {
+          const resolved = resolvePortByName(p, portCache);
+          if (resolved) {
+            ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: resolved.name, tripId: trip.id });
+            segmentEndpoints.push({ latitude: resolved.lat, longitude: resolved.lng });
+            console.debug && console.debug(`[map] trip ${trip.id} port[${idx}] '${p}' -> resolved '${resolved.name}' @ ${resolved.lat},${resolved.lng} (source=${resolved.source || 'unknown'})`);
+          } else {
+            unresolved.push({ port: p, tripId: trip.id });
+            console.debug && console.debug(`[map] trip ${trip.id} port[${idx}] '${p}' -> unresolved`);
+          }
         }
       });
       if (segmentEndpoints.length >= 2) {
@@ -195,28 +213,38 @@ export default function MapScreen() {
       }
     }
     return { portMarkers: ports, tripPaths: paths, arrowMarkers: arrows, unresolvedPorts: unresolved };
-  }, [filteredTrips, portCache]);
+  }, [filteredTrips, portCache, portsFingerprint]);
+
 
   const normalizeName = useCallback((s: string) => s.trim().toLowerCase(), []);
   useEffect(() => {
     if (!unresolvedPorts || unresolvedPorts.length === 0) return;
-    const uniq = Array.from(new Set(unresolvedPorts.map(u => normalizeName(u.port))));
-    const toLookup = uniq.filter(n => !pendingPorts.map(normalizeName).includes(n));
+    // Use original port strings (not normalized) so online lookup gets the user's input and we can
+    // validate results before persisting them.
+    const uniqOriginal = Array.from(new Set(unresolvedPorts.map(u => u.port)));
+    const toLookup = uniqOriginal.filter(orig => !pendingPorts.map(normalizeName).includes(normalizeName(orig)));
     if (toLookup.length === 0) return;
-    setPendingPorts(prev => [...prev, ...toLookup]);
+    setPendingPorts(prev => [...prev, ...toLookup.map(normalizeName)]);
     (async () => {
-      for (const normName of toLookup) {
-        const portName = normName;
+      for (const origPort of toLookup) {
         try {
-          let results = await searchPortsOnline(portName, 1);
-          if (!results || results.length === 0) results = await searchPortsOnline(`${portName} cruise port`, 1);
-          if (!results || results.length === 0) results = await searchPortsOnline(`${portName} port`, 1);
-          if (results && results.length > 0) await upsertCachedPort(results[0]);
-        } catch {}
+          let results = await searchPortsOnline(origPort, 1);
+          if (!results || results.length === 0) results = await searchPortsOnline(`${origPort} cruise port`, 1);
+          if (!results || results.length === 0) results = await searchPortsOnline(`${origPort} port`, 1);
+          // Only persist if the returned candidate reasonably matches the original query
+          if (results && results.length > 0 && fuzzyMatch(origPort, results[0].name, 0.6)) {
+            await upsertCachedPort(results[0]);
+            console.debug && console.debug(`[ports] persisted online result for '${origPort}' -> '${results[0].name}'`);
+          } else {
+            console.debug && console.debug(`[ports] skipping persist for '${origPort}' - no confident match (${results && results[0] ? results[0].name : 'no result'})`);
+          }
+        } catch (e) {
+          console.debug && console.debug('[ports] online lookup error for', origPort, e);
+        }
         try { await new Promise(res => setTimeout(res, 400)); } catch {}
       }
       try {
-        const [cache, trips] = await Promise.all([loadPortsCache(), getTrips()]);
+  const [cache, trips] = await Promise.all([PortsCache.load(), getTrips()]);
         setPortCache(cache);
         setTrips(trips);
       } catch {}
@@ -224,14 +252,13 @@ export default function MapScreen() {
   }, [unresolvedPorts, pendingPorts, normalizeName]);
 
   const ClusterBubble = ({ count }: { count: number }) => (
-    <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: (themeColors as any).primaryDark || themeColors.primary, borderWidth: 2, borderColor: themeColors.background, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
+  <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: (themeColors as any).primaryDark || themeColors.primary, borderWidth: 2, borderColor: themeColors.background, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
       <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{count}</Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      {!mapDisabled && (
         <>
           <MapView
             ref={(ref: MapView | null) => { mapRef.current = ref; }}
@@ -288,15 +315,37 @@ export default function MapScreen() {
           </MapView>
           <View style={{ position: 'absolute', bottom: 16, right: 16, alignItems: 'flex-end' }}>
             <Pressable
-              onPress={() => { setMapType(t => { const next = t === 'standard' ? 'hybrid' : 'standard'; setPref('defaultMapType', next).catch(() => {}); return next; }); }}
+              onPress={() => {
+                const next = mapType === 'standard' ? 'hybrid' : 'standard';
+                setMapType(next);
+                // Persist preference asynchronously outside of the state updater to avoid setState-in-render warnings
+                setPref('defaultMapType', next).catch(() => {});
+              }}
               style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 24, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }}
               accessibilityLabel="Toggle map type"
             >
               <Text style={{ color: themeColors.primaryDark, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
             </Pressable>
+              {/* Temporary debug: clear ports cache */}
+              <Pressable
+                onPress={async () => {
+                  try {
+                    await clearPortsCache();
+                    await refresh();
+                    toast.show('Ports cache cleared', { kind: 'success' });
+                    console.debug('[debug] cleared ports cache via UI');
+                  } catch (err) {
+                    toast.show('Failed to clear ports cache', { kind: 'error' });
+                    console.debug('[debug] clearPortsCache failed', err);
+                  }
+                }}
+                style={{ marginTop: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }}
+                accessibilityLabel="Debug: clear ports cache"
+              >
+                <Text style={{ color: themeColors.textSecondary, fontSize: 11 }}>Clear ports cache</Text>
+              </Pressable>
           </View>
         </>
-      )}
 
       <View style={styles.overlay}>
         <View style={styles.overlayTopRow}>
@@ -334,11 +383,7 @@ export default function MapScreen() {
         </View>
       </View>
 
-      {mapDisabled && (
-        <View style={[styles.container, styles.empty, { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }] }>
-          <Text style={styles.emptyText}>Map is disabled.</Text>
-        </View>
-      )}
+  {/* map always enabled */}
 
       <Modal
         visible={addLocationModalVisible}
@@ -355,11 +400,14 @@ export default function MapScreen() {
                 {pendingPlaceName ? pendingPlaceName : `${pendingCoord.latitude.toFixed(4)}, ${pendingCoord.longitude.toFixed(4)}${pendingPlaceName===null ? ' (resolving...)' : ''}`}
               </Text>
             )}
-            <FlatList
-              data={trips}
-              keyExtractor={t => t.id}
-              style={{ maxHeight: 260 }}
-              renderItem={({ item }) => {
+            {trips.length === 0 ? (
+              <Text style={{ color: themeColors.textSecondary, marginBottom: 12 }}>No trips available. Create a Trip first!</Text>
+            ) : (
+              <FlatList
+                data={trips}
+                keyExtractor={t => t.id}
+                style={{ maxHeight: 260 }}
+                renderItem={({ item }) => {
                 const active = addingTripId === item.id;
                 return (
                   <TouchableOpacity
@@ -377,7 +425,8 @@ export default function MapScreen() {
                   </TouchableOpacity>
                 );
               }}
-            />
+              />
+            )}
             <TouchableOpacity onPress={() => { setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null); }} style={{ alignSelf:'flex-end', marginTop:6, paddingVertical:8, paddingHorizontal:14 }}>
               <Text style={{ color: themeColors.primary, fontWeight:'600' }}>Close</Text>
             </TouchableOpacity>

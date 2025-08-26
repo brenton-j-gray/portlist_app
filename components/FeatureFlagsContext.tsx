@@ -3,7 +3,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 
 export type FeatureFlags = {
   weather: boolean;
-  maps: boolean;
 };
 
 type FeatureFlagsContextType = {
@@ -23,18 +22,13 @@ function parseBool(v: any, fallback: boolean): boolean {
 
 const DEFAULT_FLAGS: FeatureFlags = {
   weather: true,
-  maps: false,
 };
 
 async function readOverrides(): Promise<Partial<FeatureFlags>> {
   try {
-    const [w, m] = await Promise.all([
-      AsyncStorage.getItem('ff_weather'),
-      AsyncStorage.getItem('ff_maps'),
-    ]);
+    const w = await AsyncStorage.getItem('ff_weather');
     const out: Partial<FeatureFlags> = {};
     if (w != null) out.weather = w === '1';
-    if (m != null) out.maps = m === '1';
     return out;
   } catch {
     return {};
@@ -47,10 +41,8 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
   const computeFromEnv = (): Partial<FeatureFlags> => {
     // Expo public env vars are available at build/runtime
     const envWeather = (process.env.EXPO_PUBLIC_ENABLE_WEATHER as any);
-    const envMaps = (process.env.EXPO_PUBLIC_ENABLE_MAPS as any);
     const out: Partial<FeatureFlags> = {};
     if (envWeather != null) out.weather = parseBool(envWeather, DEFAULT_FLAGS.weather);
-    if (envMaps != null) out.maps = parseBool(envMaps, DEFAULT_FLAGS.maps);
     return out;
   };
 
@@ -65,10 +57,9 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
   const setFlag: FeatureFlagsContextType['setFlag'] = async (key, value) => {
     setFlags((prev) => ({ ...prev, [key]: value }));
     try {
-      await AsyncStorage.setItem(
-        key === 'weather' ? 'ff_weather' : 'ff_maps',
-        value ? '1' : '0'
-      );
+      if (key === 'weather') {
+        await AsyncStorage.setItem('ff_weather', value ? '1' : '0');
+      }
     } catch { /* ignore */ }
   };
 

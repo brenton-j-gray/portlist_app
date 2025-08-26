@@ -224,6 +224,26 @@ export default function NewNoteScreen() {
     } catch {}
   }
 
+  // When the native MapView becomes available, default the map to the user's current location
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!MapComponents) return; // only when native map is present
+        if (location) return; // don't override an explicit selection
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        const cur = await Location.getCurrentPositionAsync({});
+        const lat = cur.coords.latitude; const lng = cur.coords.longitude;
+        setLocation({ lat, lng });
+        requestAnimationFrame(() => {
+          const region = { latitude: lat, longitude: lng, latitudeDelta: 0.02, longitudeDelta: 0.02 } as any;
+          if (MapRef.current?.animateToRegion) MapRef.current.animateToRegion(region, 400);
+          else if (MapRef.current?.fitToCoordinates) MapRef.current.fitToCoordinates([{ latitude: lat, longitude: lng }], { edgePadding: { top: 40, right: 40, bottom: 40, left: 40 }, animated: true });
+        });
+      } catch {}
+    })();
+  }, [MapComponents, location]);
+
   async function doSearch() {
     if (!locationQuery.trim()) return;
     setSearching(true);

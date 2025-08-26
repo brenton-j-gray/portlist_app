@@ -3,13 +3,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs, router, usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
-import { useFeatureFlags } from '../../components/FeatureFlagsContext';
 import { useTheme } from '../../components/ThemeContext';
 import AppHeader from '../../components/navigation/AppHeader';
 
 export default function TabsLayout() {
   const { themeColors } = useTheme();
-  const { flags } = useFeatureFlags();
   const pathname = usePathname();
   const screenOptions = useMemo(() => ({
     tabBarLabelStyle: {
@@ -37,14 +35,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="map"
         options={{
-          href: flags.maps ? undefined : null,
           title: 'Map',
           tabBarIcon: ({ color, focused, size }) => (
             <Ionicons name={focused ? 'map' : 'map-outline'} color={color} size={size ?? 24} />
           ),
         }}
       />
-      {/* Next: Trips (standard tab) */}
+      {/* Trips */}
       <Tabs.Screen
         name="trips"
         options={{
@@ -55,7 +52,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Center floating button: Home */}
+      {/* Center floating Home button */}
       <Tabs.Screen
         name="index"
         options={{
@@ -76,6 +73,7 @@ export default function TabsLayout() {
           },
         }}
       />
+      {/* Lists */}
       <Tabs.Screen
         name="lists"
         options={{
@@ -85,6 +83,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Settings */}
       <Tabs.Screen
         name="settings"
         options={{
@@ -94,15 +93,8 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="donate"
-        options={{
-          title: 'Donate',
-          tabBarIcon: ({ color, focused, size }) => (
-            <Ionicons name={focused ? 'card' : 'card-outline'} color={color} size={size ?? 24} />
-          ),
-        }}
-      />
+      {/* Donate hidden; accessed from Settings */}
+      <Tabs.Screen name="donate" options={{ href: null, title: 'Donate' }} />
   {/* Hidden screen for editing profile; navigable from Settings */}
   <Tabs.Screen name="profile" options={{ href: null, title: 'Edit Profile' }} />
   {/* Hidden screen for security settings; navigable from Settings */}

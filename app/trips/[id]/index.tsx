@@ -115,7 +115,7 @@ export default function TripDetail(){
       <View style={{marginHorizontal:16,marginBottom:8,flexDirection:'row',alignItems:'center'}}>
         <Text accessibilityRole="header" style={{fontSize:20,fontWeight:'700',color:themeColors.text}}>Notes</Text>
         <View style={{flex:1,alignItems:'center'}}>
-          <Pressable accessibilityLabel="Add new note" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note/new' as any, params:{id:String(id)}} as any)} style={{flexDirection:'row',alignItems:'center',backgroundColor:themeColors.primary,paddingVertical:8,paddingHorizontal:18,borderRadius:999,shadowColor:'#000',shadowOpacity:0.15,shadowRadius:4,shadowOffset:{width:0,height:2},elevation:2}}>
+          <Pressable accessibilityLabel="Add new note" onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note-new' as any, params:{id:String(id)}} as any)} style={{flexDirection:'row',alignItems:'center',backgroundColor:themeColors.primary,paddingVertical:8,paddingHorizontal:18,borderRadius:999,shadowColor:'#000',shadowOpacity:0.15,shadowRadius:4,shadowOffset:{width:0,height:2},elevation:2}}>
             <Ionicons name="add" size={18} color={themeColors.badgeText} />
             <Text style={{marginLeft:6,fontSize:14,fontWeight:'700',color:themeColors.badgeText}}>New Note</Text>
           </Pressable>

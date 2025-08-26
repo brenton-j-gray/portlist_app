@@ -83,6 +83,14 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 24 }}>
+      {/* Support / Donate */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Support</Text>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/donate' as any)} style={styles.primaryBtn}>
+          <Text style={styles.primaryText}>Donate</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Appearance */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>

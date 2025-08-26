@@ -6,7 +6,8 @@ import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, Scro
 import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
 import { formatDateWithPrefs, usePreferences } from '../../../components/PreferencesContext';
 import { useTheme } from '../../../components/ThemeContext';
-import { loadPortsCache, PortEntry, resolvePortByName, unifiedPortSearch, upsertCachedPort } from '../../../lib/ports';
+import { PortEntry, resolvePortByName, unifiedPortSearch, upsertCachedPort } from '../../../lib/ports';
+import { PortsCache } from '../../../lib/portsCache';
 import { deleteTrip, getTripById, upsertTrip } from '../../../lib/storage';
 import { Trip } from '../../../types';
 function parseLocal(dateStr: string | undefined): Date | null {
@@ -75,7 +76,7 @@ export default function EditTripScreen() {
       }
       // Load cached ports for autocomplete
       try {
-        const cache = await loadPortsCache();
+        const cache = await PortsCache.load();
         setPortsCache(cache);
       } catch {}
     })();
@@ -145,7 +146,7 @@ export default function EditTripScreen() {
     const updated: Trip = { ...trip, title: title.trim(), ship: ship.trim() || undefined, startDate: startDate || undefined, endDate: endDate || undefined, completed, ports: normalized };
     await upsertTrip(updated);
     // Refresh cache so formatting reflects any newly cached ports from selections
-    try { const cache = await loadPortsCache(); setPortsCache(cache); } catch {}
+  try { const cache = await PortsCache.load(); setPortsCache(cache); } catch {}
     router.replace(`/trips/${trip.id}`);
   }
 
@@ -288,7 +289,7 @@ export default function EditTripScreen() {
           if (r) {
             try {
               await upsertCachedPort({ name: r.name, country: r.country, regionCode: r.regionCode, lat: r.lat, lng: r.lng, aliases: r.aliases, source: 'cache' });
-              const cache = await loadPortsCache();
+              const cache = await PortsCache.load();
               setPortsCache(cache);
             } catch {}
           }
@@ -307,7 +308,7 @@ export default function EditTripScreen() {
           if (r) {
             try {
               await upsertCachedPort({ name: r.name, country: r.country, regionCode: r.regionCode, lat: r.lat, lng: r.lng, aliases: r.aliases, source: 'cache' });
-              const cache = await loadPortsCache();
+              const cache = await PortsCache.load();
               setPortsCache(cache);
             } catch {}
           }
@@ -354,7 +355,7 @@ export default function EditTripScreen() {
             // Persist coordinates to local cache for map usage
             upsertCachedPort({ name: s.name, country: s.country, regionCode: s.regionCode, lat: s.lat, lng: s.lng, aliases: s.aliases, source: 'cache' }).then(async () => {
               // refresh local cache state so future searches include this entry as cached
-              try { const cache = await loadPortsCache(); setPortsCache(cache); } catch {}
+              try { const cache = await PortsCache.load(); setPortsCache(cache); } catch {}
             }).catch(() => {});
           }}
           style={{
