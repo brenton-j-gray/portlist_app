@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "cjp-auth-server": "file:.."
+    "portlist-auth-server": "file:.."
   }
 }

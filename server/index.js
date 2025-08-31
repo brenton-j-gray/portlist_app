@@ -30,7 +30,7 @@ if (!MONGO_URI) {
   process.exit(1);
 }
 
-await mongoose.connect(MONGO_URI, { dbName: process.env.DB_NAME || 'cjp' });
+await mongoose.connect(MONGO_URI, { dbName: process.env.DB_NAME || 'portlist' });
 
 const port = process.env.PORT || 4000;
 app.listen(port, () => console.log(`Auth server listening on :${port}`));

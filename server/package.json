@@ -1,5 +1,5 @@
 {
-  "name": "cjp-auth-server",
+  "name": "portlist-auth-server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "cruise-journal-pro": "file:..",
+    "portlist_app": "file:..",
     "d3-geo": "^3.1.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
