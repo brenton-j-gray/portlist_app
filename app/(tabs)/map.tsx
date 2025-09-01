@@ -41,23 +41,16 @@ export default function MapScreen() {
   const didRestoreInitialRegion = useRef(false);
   const toast = useToast();
 
-  // Android: dynamically load MapLibre (react-native-maplibre-gl) to avoid Google base map/watermark
+  // Android: dynamically load MapLibre (@maplibre/maplibre-react-native) to avoid Google base map/watermark
   const [MapLibre, setMapLibre] = useState<any>(null);
   const cameraRef = useRef<any>(null);
   useEffect(() => {
     (async () => {
       if (Platform.OS !== 'android') return;
       try {
-        const mod = await import('react-native-maplibre-gl');
+        const mod = await import('@maplibre/maplibre-react-native');
         setMapLibre((mod as any).default || (mod as any));
-      } catch {
-        try {
-          const modAlt = await import('react-native-maplibre-gl/maps');
-          setMapLibre((modAlt as any).default || (modAlt as any));
-        } catch {
-          setMapLibre(null);
-        }
-      }
+      } catch { setMapLibre(null); }
     })();
   }, []);
 

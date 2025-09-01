@@ -87,18 +87,10 @@ export default function NewNoteScreen() {
         if (!inGo) {
           if (Platform.OS === 'android') {
             try {
-              const mod = await import('react-native-maplibre-gl');
+              const mod = await import('@maplibre/maplibre-react-native');
               setMapLibre((mod as any).default || (mod as any));
               setMapComponents(null);
-            } catch {
-              try {
-                const mod2 = await import('react-native-maplibre-gl/maps');
-                setMapLibre((mod2 as any).default || (mod2 as any));
-                setMapComponents(null);
-              } catch {
-                setMapLibre(null);
-              }
-            }
+            } catch { setMapLibre(null); }
           } else if (!!UIManager.getViewManagerConfig?.('AIRMap')) {
             const mod = await import('react-native-maps');
             setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker, UrlTile: (mod as any).UrlTile });
