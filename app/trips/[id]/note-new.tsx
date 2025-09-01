@@ -32,7 +32,7 @@ export default function NewNoteScreen() {
   const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
   const [isSeaDay, setIsSeaDay] = useState(false);
   const MapRef = useRef<any>(null);
-  const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any }>(null);
+  const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any; UrlTile?: any }>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   // Added color & emoji state
   const [color, setColor] = useState<string | undefined>(undefined);
@@ -84,7 +84,7 @@ export default function NewNoteScreen() {
         const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
         if (!inGo && hasAirMap) {
           const mod = await import('react-native-maps');
-          setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker });
+          setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker, UrlTile: (mod as any).UrlTile });
         } else {
           setMapComponents(null);
         }
@@ -434,6 +434,9 @@ export default function NewNoteScreen() {
                 mapType={mapType}
                 ref={MapRef}
               >
+                {MapComponents.UrlTile ? (
+                  <MapComponents.UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
+                ) : null}
                 {location && (
                   <MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
                 )}

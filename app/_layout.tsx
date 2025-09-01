@@ -1,7 +1,6 @@
-import { Pacifico_400Regular } from '@expo-google-fonts/pacifico';
+import { Inter_400Regular, Inter_500Medium, Inter_700Bold, useFonts as useInterFonts } from '@expo-google-fonts/inter';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
 import type { Href } from 'expo-router';
 import { Stack, router, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -40,10 +39,12 @@ function AppLayoutInner() {
   const { themeColors, colorScheme } = useTheme();
   const { token, userName, userEmail, userAvatar } = useAuth();
   const pathname = usePathname();
-  // Load custom fonts (used by Home greeting, etc.)
-  const [fontsLoaded] = useFonts({
+  // Load custom fonts (used by Home greeting, etc.). Prefer Inter as the app's default font.
+  const [fontsLoaded] = useInterFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    Pacifico: Pacifico_400Regular,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_700Bold,
   });
   // Shared: compute hierarchical parent path for replace-navigation
   const getParentPath = useMemo(() => (path: string | null | undefined): string | undefined => {
@@ -119,6 +120,35 @@ function AppLayoutInner() {
 
   if (!fontsLoaded) return null;
 
+  // Set a sensible default font family for all Text across the app to Inter.
+  // Using `as any` because React Native's Text typing doesn't expose defaultProps in some TS configs.
+  try {
+    const RNText: any = Text;
+    RNText.defaultProps = RNText.defaultProps || {};
+    // Preserve existing default styles and prepend Inter.
+    const existingStyle = RNText.defaultProps.style;
+    RNText.defaultProps.style = [{ fontFamily: 'Inter_400Regular' }, existingStyle].filter(Boolean);
+  } catch {
+    // ignore - best effort only
+  }
+
+  // Dev debug: print loaded font state and expose a small on-screen badge when running in dev.
+  let resolvedDefaultFont = 'unknown';
+  try {
+    const RNTextAny: any = Text;
+    const style = RNTextAny.defaultProps?.style;
+    if (Array.isArray(style)) {
+      const found = style.find(s => s && typeof s === 'object' && s.fontFamily);
+      if (found) resolvedDefaultFont = found.fontFamily;
+    } else if (style && typeof style === 'object' && style.fontFamily) {
+      resolvedDefaultFont = style.fontFamily;
+    }
+  } catch {
+    // ignore
+  }
+  // Log to console for easier debugging in Metro/DevTools
+  if (__DEV__) console.debug('[DEBUG] fontsLoaded=', fontsLoaded, 'resolvedDefaultFont=', resolvedDefaultFont);
+
   const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
     // Compute parent route if `to` not provided, using canonical /(tabs)/trips hierarchy
     let computedTo: string | undefined = typeof to === 'string' ? to : undefined;
@@ -148,6 +178,11 @@ function AppLayoutInner() {
 
   return (
   <View style={{ flex: 1, backgroundColor: themeColors.background }}>
+  {__DEV__ ? (
+    <View style={{ position: 'absolute', right: 8, top: 48, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }} pointerEvents="none">
+      <Text style={{ color: 'white', fontSize: 12 }}>{`fontsLoaded: ${fontsLoaded ? 'yes' : 'no'} • font: ${resolvedDefaultFont}`}</Text>
+    </View>
+  ) : null}
   <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} animated />
   <PreferencesProvider>
   <StripeProvider

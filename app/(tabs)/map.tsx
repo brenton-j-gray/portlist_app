@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Callout, Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import MapView, { Callout, Marker, Polyline, Region, UrlTile } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
@@ -264,7 +264,6 @@ export default function MapScreen() {
             ref={(ref: MapView | null) => { mapRef.current = ref; }}
             style={styles.map}
             initialRegion={initial}
-            provider={PROVIDER_GOOGLE}
             customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
             mapType={mapType}
             onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
@@ -278,6 +277,11 @@ export default function MapScreen() {
               } catch {}
             }}
           >
+            <UrlTile
+              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maximumZ={19}
+              flipY={false}
+            />
             {routesVisible && tripPaths.map(path => (
               <Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
             ))}

@@ -131,7 +131,7 @@ function TwoFASection() {
     btnText: { color: 'white', fontWeight: '700' },
     info: { color: themeColors.textSecondary, marginTop: 8 },
     codesWrap: { marginTop: 8, gap: 6 },
-    codeItem: { fontFamily: 'monospace', color: themeColors.text },
+  codeItem: { color: themeColors.text },
   }), [themeColors]);
 
   React.useEffect(() => {
