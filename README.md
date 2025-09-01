@@ -25,55 +25,44 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
-## Google Maps API keys (dev client)
+## Geocoding (no Google)
 
-This app uses a dynamic config (`app.config.ts`) to inject Google Maps keys into native builds.
+The app does not use Google services. For place search:
 
-Set keys via environment variables (don’t hardcode secrets):
+- Preferred: MapTiler Geocoding (set `EXPO_PUBLIC_MAPTILER_KEY` in `.env`).
+- Fallback: OpenStreetMap Nominatim (respecting usage policy with a custom User-Agent).
 
-- `GOOGLE_MAPS_API_KEY` (Android)
-- `GOOGLE_MAPS_API_KEY_IOS` (iOS; optional, falls back to the Android key)
+## Map tiles (avoid OSM blocks)
 
-Local (PowerShell on Windows):
+The app renders maps via `react-native-maps` `UrlTile`. By default it points to OpenStreetMap's public tile server for local development. The public OSM tiles are volunteer-run and will block apps that don't meet their usage policy, especially mobile apps.
 
-```pwsh
-$env:GOOGLE_MAPS_API_KEY='YOUR_ANDROID_KEY'; npx expo start --dev-client
-```
+To avoid "App is not following the tile usage policy" blocks, configure a proper tile provider:
 
-EAS Build (recommended):
+- Option A (recommended): MapTiler
+  - Create a free key at https://www.maptiler.com/
+  - Add to your `.env`:
 
-1. Add secrets in Expo Dashboard: `GOOGLE_MAPS_API_KEY`, optional `GOOGLE_MAPS_API_KEY_IOS`.
-2. Rebuild the dev client:
+    ```env
+    EXPO_PUBLIC_MAPTILER_KEY=YOUR_KEY
+    ```
 
-```pwsh
-npx eas build --platform android --profile development
-```
+  - This auto-switches tiles to `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=...`.
 
-Note: Native changes (like API keys) require reinstalling the dev client.
+- Option B: Custom tile URL
+  - Set any compatible template with `{z}/{x}/{y}` placeholders:
 
-## Location Search (Google Places)
-
-The note screens will use the Google Places Autocomplete + Details APIs (if a key is provided) for richer location suggestions (names + formatted addresses). If no key is set the app falls back to the built‑in `expo-location` geocoder.
-
-Setup:
-
-1. Create a restricted API key in Google Cloud Console with the following APIs enabled:
-   - Places API
-   - Maps SDK for Android (if using maps)
-   - Maps SDK for iOS (if using maps)
-2. Restrict the key by package name + SHA (Android) and bundle ID (iOS) for native builds, and optionally HTTP referrers if you build a web version.
-3. Expose the key to the app (public – do NOT reuse a secret server key):
-
-```pwsh
-$env:EXPO_PUBLIC_GOOGLE_PLACES_KEY='YOUR_RESTRICTED_KEY'; npx expo start --dev-client
-```
-
-4. Rebuild your dev client if you changed native map keys.
+    ```env
+    EXPO_PUBLIC_TILE_URL_TEMPLATE=https://your.tiles.provider/path/{z}/{x}/{y}.png?token=KEY
+    ```
 
 Notes:
-- Only the first 5 predictions request place details (to limit quota usage).
-- Results are cached in-memory per session to reduce network calls while typing.
-- Fallback geocoder still runs when Places returns no results (or key absent).
+- Environment variables must be prefixed with `EXPO_PUBLIC_` to be available at runtime.
+- After changing env, restart the bundler (and rebuild the dev client if native config changed).
+- The map shows a small attribution label; keep it visible to comply with provider terms.
+
+## Android native map (MapLibre)
+
+Android uses the MapLibre RN SDK (react-native-maplibre-gl). It pulls its native artifacts from Maven Central — no Mapbox downloads token is required. Tiles/geocoding still come from your configured providers (MapTiler/OSM).
 
 
 ## Get a fresh project

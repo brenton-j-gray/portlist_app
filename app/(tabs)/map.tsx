@@ -3,8 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Callout, Marker, Polyline, Region, UrlTile } from 'react-native-maps';
+import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View, Linking } from 'react-native';
+import Constants from 'expo-constants';
+import { Platform, UIManager } from 'react-native';
+import type { Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
@@ -13,6 +15,7 @@ import { clearPortsCache, fuzzyMatch, PortEntry, resolvePortByName, searchPortsO
 import { PortsCache } from '../../lib/portsCache';
 import { getTrips, uid, upsertTrip } from '../../lib/storage';
 import type { Trip } from '../../types';
+import { getTileConfig } from '../../lib/tiles';
 
 export default function MapScreen() {
   const { themeColors, colorScheme } = useTheme();
@@ -23,7 +26,7 @@ export default function MapScreen() {
   const ROUTE_STROKE_WIDTH = 3;
   const ARROW_HEIGHT = 13;
   const [trips, setTrips] = useState<Trip[]>([]);
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<any>(null);
   const [region, setRegion] = useState<Region | null>(null);
   const REGION_KEY = 'map_last_region_v1';
   const [portCache, setPortCache] = useState<PortEntry[]>([]);
@@ -37,6 +40,51 @@ export default function MapScreen() {
   const [addingTripId, setAddingTripId] = useState<string | null>(null);
   const didRestoreInitialRegion = useRef(false);
   const toast = useToast();
+
+  // Android: dynamically load MapLibre (react-native-maplibre-gl) to avoid Google base map/watermark
+  const [MapLibre, setMapLibre] = useState<any>(null);
+  const cameraRef = useRef<any>(null);
+  useEffect(() => {
+    (async () => {
+      if (Platform.OS !== 'android') return;
+      try {
+        const mod = await import('react-native-maplibre-gl');
+        setMapLibre((mod as any).default || (mod as any));
+      } catch {
+        try {
+          const modAlt = await import('react-native-maplibre-gl/maps');
+          setMapLibre((modAlt as any).default || (modAlt as any));
+        } catch {
+          setMapLibre(null);
+        }
+      }
+    })();
+  }, []);
+
+  // Dynamically load map components only when available (dev client/standalone with AIRMap)
+  const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any; Polyline: any; UrlTile?: any; Callout: any }>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const inExpoGo = Constants.appOwnership === 'expo';
+        const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
+        if (!inExpoGo && hasAirMap) {
+          const mod = await import('react-native-maps');
+          setMapComponents({
+            MapView: mod.default,
+            Marker: (mod as any).Marker,
+            Polyline: (mod as any).Polyline,
+            UrlTile: (mod as any).UrlTile,
+            Callout: (mod as any).Callout,
+          });
+        } else {
+          setMapComponents(null);
+        }
+      } catch {
+        setMapComponents(null);
+      }
+    })();
+  }, []);
 
   const styles = useMemo(() => StyleSheet.create({
     container: { flex: 1, backgroundColor: themeColors.background, paddingBottom: Math.max(12, insets?.bottom || 0) },
@@ -257,15 +305,102 @@ export default function MapScreen() {
     </View>
   );
 
+  // Tile provider configuration (defaults to OSM; recommend setting EXPO_PUBLIC_MAPTILER_KEY or EXPO_PUBLIC_TILE_URL_TEMPLATE)
+  const tile = useMemo(() => getTileConfig(), []);
+
+  // Helper: mapRef wrapper for MapLibre to support animateToRegion / fitToCoordinates API
+  useEffect(() => {
+    if (Platform.OS === 'android' && MapLibre) {
+      mapRef.current = {
+        animateToRegion: (r: Region, duration = 300) => {
+          try {
+            const zoom = Math.max(1, Math.min(16, Math.log2(360 / Math.max(r.latitudeDelta || 0.02, 0.00001))));
+            cameraRef.current?.setCamera?.({ centerCoordinate: [r.longitude, r.latitude], zoomLevel: zoom, duration });
+          } catch {}
+        },
+        fitToCoordinates: (coords: { latitude: number; longitude: number }[], opts?: any) => {
+          try {
+            const lats = coords.map(c => c.latitude);
+            const lngs = coords.map(c => c.longitude);
+            const ne = [Math.max(...lngs), Math.max(...lats)];
+            const sw = [Math.min(...lngs), Math.min(...lats)];
+            const pad = (opts?.edgePadding?.top || 40) as number;
+            cameraRef.current?.fitBounds?.(ne, sw, pad, 300);
+          } catch {}
+        },
+      };
+    }
+  }, [MapLibre]);
+
   return (
     <View style={styles.container}>
         <>
-          <MapView
-            ref={(ref: MapView | null) => { mapRef.current = ref; }}
+          {/* Android: Use MapLibre if available to avoid Google watermark */}
+          {Platform.OS === 'android' && MapLibre ? (
+            <MapLibre.MapView style={styles.map} styleURL={tile.styleURL || undefined}
+              onLongPress={(e: any) => {
+                try {
+                  const coords = e?.geometry?.coordinates || e?.coordinates;
+                  if (coords && coords.length >= 2) {
+                    const coord = { latitude: coords[1], longitude: coords[0] };
+                    setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
+                  }
+                } catch {}
+              }}
+            >
+              <MapLibre.Camera ref={cameraRef}
+                centerCoordinate={[ (region?.longitude ?? 0), (region?.latitude ?? 20) ]}
+                zoomLevel={Math.log2(360 / Math.max(region?.latitudeDelta || 80, 0.00001))}
+              />
+              {/* Paths */}
+              {routesVisible && tripPaths.length > 0 && (
+                <MapLibre.ShapeSource id="trip_paths" shape={{ type: 'FeatureCollection', features: tripPaths.map(p => ({ type:'Feature', properties:{ key: p.key }, geometry:{ type:'LineString', coordinates: p.coords.map(c => [c.longitude, c.latitude]) } })) }}>
+                  <MapLibre.LineLayer id="trip_paths_layer" style={{ lineColor: routeColor, lineWidth: ROUTE_STROKE_WIDTH }} />
+                </MapLibre.ShapeSource>
+              )}
+              {/* Direction arrows */}
+              {routesVisible && arrowMarkers.map(am => (
+                <MapLibre.PointAnnotation key={am.key} id={am.key} coordinate={[am.lng, am.lat]}>
+                  <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
+                      <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2 }} />
+                    </View>
+                  </View>
+                </MapLibre.PointAnnotation>
+              ))}
+              {/* Note markers and clusters */}
+              {clusters.map(item => (
+                item.type === 'point' ? (
+                  <MapLibre.PointAnnotation key={item.point.key} id={item.point.key} coordinate={[item.point.lng, item.point.lat]}>
+                    <Pressable onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)} accessibilityLabel={`Note: ${item.point.title}`}>
+                      <View style={{ backgroundColor: themeColors.card, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: themeColors.menuBorder }}>
+                        <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 12 }}>{item.point.title}</Text>
+                        {!!item.point.subtitle && <Text style={{ color: themeColors.textSecondary, fontSize: 11 }}>{item.point.subtitle}</Text>}
+                      </View>
+                    </Pressable>
+                  </MapLibre.PointAnnotation>
+                ) : (
+                  <MapLibre.PointAnnotation key={item.cluster.key} id={item.cluster.key} coordinate={[item.cluster.lng, item.cluster.lat]}>
+                    <Pressable onPress={() => zoomIntoCluster(item.cluster)} accessibilityLabel={`Cluster count ${item.cluster.count}`}>
+                      <ClusterBubble count={item.cluster.count} />
+                    </Pressable>
+                  </MapLibre.PointAnnotation>
+                )
+              ))}
+              {/* Port markers */}
+              {portMarkers.map(pm => (
+                <MapLibre.PointAnnotation key={pm.key} id={pm.key} coordinate={[pm.lng, pm.lat]}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
+                </MapLibre.PointAnnotation>
+              ))}
+            </MapLibre.MapView>
+          ) : MapComponents ? (
+          <MapComponents.MapView
+            ref={(ref: any) => { mapRef.current = ref; }}
             style={styles.map}
             initialRegion={initial}
-            customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
-            mapType={mapType}
+              customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
+              mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
             onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
             onLongPress={async e => {
               const coord = e.nativeEvent.coordinate; setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
@@ -277,59 +412,73 @@ export default function MapScreen() {
               } catch {}
             }}
           >
-            <UrlTile
-              urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maximumZ={19}
-              flipY={false}
-            />
+          <MapComponents.MapView
+            ref={(ref: any) => { mapRef.current = ref; }}
+            style={styles.map}
+            initialRegion={initial}
+              customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
+              mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
+            onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
+            onLongPress={async e => {
+              const coord = e.nativeEvent.coordinate; setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
+              try {
+                const perm = await Location.getForegroundPermissionsAsync();
+                if (!perm.granted && perm.canAskAgain) { const req = await Location.requestForegroundPermissionsAsync(); if (!req.granted) {} }
+                const res = await Location.reverseGeocodeAsync({ latitude: coord.latitude, longitude: coord.longitude });
+                if (res && res.length) { const r = res[0]; const parts = [r.city || r.district || r.subregion, r.region, r.country].filter(Boolean) as string[]; const name = parts.filter((p, idx) => !parts.slice(0, idx).includes(p)).join(', '); setPendingPlaceName(name || null); }
+              } catch {}
+            }}
+          >
+            {MapComponents && MapComponents.UrlTile ? (
+              <MapComponents.UrlTile
+                urlTemplate={tile.urlTemplate}
+                maximumZ={19}
+                flipY={false}
+              />
+            ) : null}
             {routesVisible && tripPaths.map(path => (
-              <Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
+              <MapComponents.Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
             ))}
             {routesVisible && arrowMarkers.map(am => (
-              <Marker key={am.key} coordinate={{ latitude: am.lat, longitude: am.lng }} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false} zIndex={5000} accessibilityLabel="Direction arrow">
+              <MapComponents.Marker key={am.key} coordinate={{ latitude: am.lat, longitude: am.lng }} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false} zIndex={5000} accessibilityLabel="Direction arrow">
                 <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
                   <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
                     <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2, textShadowColor: '#00000055', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }} />
                   </View>
                 </View>
-              </Marker>
+              </MapComponents.Marker>
             ))}
             {clusters.map(item => (
               item.type === 'point' ? (
-                <Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }} pinColor={(themeColors as any).primaryDark || themeColors.primary} tracksViewChanges={false} accessibilityLabel={`Note: ${item.point.title}`}>
-                  <Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
+                <MapComponents.Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }} pinColor={(themeColors as any).primaryDark || themeColors.primary} tracksViewChanges={false} accessibilityLabel={`Note: ${item.point.title}`}>
+                  <MapComponents.Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
                     <View style={styles.calloutBubble}>
                       <Text style={styles.calloutTitle}>{item.point.title}</Text>
                       {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
                       <Text style={styles.calloutAction}>Open note</Text>
                     </View>
-                  </Callout>
-                </Marker>
+                  </MapComponents.Callout>
+                </MapComponents.Marker>
               ) : (
-                <Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
+                <MapComponents.Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
                   <ClusterBubble count={item.cluster.count} />
-                </Marker>
+                </MapComponents.Marker>
               )
             ))}
             {portMarkers.map(pm => (
-              <Marker key={pm.key} coordinate={{ latitude: pm.lat, longitude: pm.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={9999} title={pm.title || 'Planned port'} description={'Planned port'} accessibilityLabel={`Planned port: ${pm.title}`}>
+              <MapComponents.Marker key={pm.key} coordinate={{ latitude: pm.lat, longitude: pm.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={9999} title={pm.title || 'Planned port'} description={'Planned port'} accessibilityLabel={`Planned port: ${pm.title}`}>
                 <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
-              </Marker>
+              </MapComponents.Marker>
             ))}
-          </MapView>
+          </MapComponents.MapView>
+          ) : (
+            <View style={[styles.map, { alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ color: themeColors.textSecondary, textAlign: 'center', paddingHorizontal: 16 }}>
+                Map preview unavailable in this environment. Build and run a dev client to enable maps.
+              </Text>
+            </View>
+          )}
           <View style={{ position: 'absolute', bottom: 16, right: 16, alignItems: 'flex-end' }}>
-            <Pressable
-              onPress={() => {
-                const next = mapType === 'standard' ? 'hybrid' : 'standard';
-                setMapType(next);
-                // Persist preference asynchronously outside of the state updater to avoid setState-in-render warnings
-                setPref('defaultMapType', next).catch(() => {});
-              }}
-              style={{ paddingVertical: 10, paddingHorizontal: 14, borderRadius: 24, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }}
-              accessibilityLabel="Toggle map type"
-            >
-              <Text style={{ color: themeColors.primaryDark, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
-            </Pressable>
               {/* Temporary debug: clear ports cache */}
               <Pressable
                 onPress={async () => {
@@ -385,6 +534,16 @@ export default function MapScreen() {
           <View style={{ width:12, height:12, borderRadius:6, backgroundColor: (themeColors as any).primaryDark || themeColors.primary, marginRight:6 }} />
           <Text style={styles.legendText}>Notes</Text>
         </View>
+      </View>
+
+      {/* Map attribution */}
+      <View style={{ position: 'absolute', bottom: 6, left: 8, backgroundColor: 'transparent' }}>
+        <Text
+          style={{ color: themeColors.textSecondary, fontSize: 10 }}
+          onPress={() => { if (tile.creditLink) Linking.openURL(tile.creditLink); }}
+        >
+          {tile.attribution}
+        </Text>
       </View>
 
   {/* map always enabled */}

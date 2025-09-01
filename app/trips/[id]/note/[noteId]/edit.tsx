@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../../../../components/PreferencesContext';
 import { useTheme } from '../../../../../components/ThemeContext';
 import { shortLocationLabel } from '../../../../../lib/location';
+import { getTileConfig } from '../../../../../lib/tiles';
 import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../../../lib/media';
 import { searchPlaces } from '../../../../../lib/places';
 import { getTripById, upsertTrip } from '../../../../../lib/storage';
@@ -33,6 +34,8 @@ export default function EditNoteScreen() {
 	const [mapType, setMapType] = useState<'standard' | 'hybrid'>('standard');
 	const MapRef = useRef<any>(null);
 	const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any; UrlTile?: any }>(null);
+	const [MapLibre, setMapLibre] = useState<any>(null);
+	const cameraRef = useRef<any>(null);
 	const [showDatePicker, setShowDatePicker] = useState(false);
 	const [color, setColor] = useState<string | undefined>(undefined);
 	const [emoji, setEmoji] = useState<string | undefined>(undefined);
@@ -41,6 +44,7 @@ export default function EditNoteScreen() {
 	const [searching, setSearching] = useState(false);
 	const [searchResults, setSearchResults] = useState<{ lat: number; lng: number; label: string }[]>([]);
 	// Removed continuous follow logic; using one-shot recenter button
+	const tile = useMemo(() => getTileConfig(), []);
 
 	function toISODate(d: Date) {
 		const y = d.getFullYear();
@@ -103,15 +107,32 @@ export default function EditNoteScreen() {
 			await Location.requestForegroundPermissionsAsync();
 			try {
 				const inGo = Constants.appOwnership === 'expo';
-				const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
-				if (!inGo && hasAirMap) {
-					const mod = await import('react-native-maps');
-					setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker, UrlTile: (mod as any).UrlTile });
-				} else {
-					setMapComponents(null);
+				if (!inGo) {
+					if (Platform.OS === 'android') {
+						try {
+							const mod = await import('react-native-maplibre-gl');
+							setMapLibre((mod as any).default || (mod as any));
+							setMapComponents(null);
+						} catch {
+							try {
+								const mod2 = await import('react-native-maplibre-gl/maps');
+								setMapLibre((mod2 as any).default || (mod2 as any));
+								setMapComponents(null);
+							} catch {
+								setMapLibre(null);
+							}
+						}
+					} else if (!!UIManager.getViewManagerConfig?.('AIRMap')) {
+						const mod = await import('react-native-maps');
+						setMapComponents({ MapView: mod.default, Marker: (mod as any).Marker, UrlTile: (mod as any).UrlTile });
+						setMapLibre(null);
+					} else {
+						setMapComponents(null);
+						setMapLibre(null);
+					}
 				}
 			} catch {
-				setMapComponents(null);
+				setMapComponents(null); setMapLibre(null);
 			}
 		})();
 	}, [id, noteId]);
@@ -446,28 +467,65 @@ export default function EditNoteScreen() {
 							))}
 						</View>
 					)}
-					{MapComponents ? (
+					{Platform.OS === 'android' && MapLibre ? (
+						<View style={styles.mapBox}>
+							<MapLibre.MapView style={{ flex: 1 }} styleURL={tile.styleURL || undefined}
+								onLongPress={(e: any) => {
+									try {
+										const coords = e?.geometry?.coordinates || e?.coordinates;
+										if (coords && coords.length >= 2) {
+											onMapPress({ nativeEvent: { coordinate: { latitude: coords[1], longitude: coords[0] } } } as any);
+										}
+									} catch {}
+								}}
+							>
+								<MapLibre.Camera ref={cameraRef}
+									centerCoordinate={[ location?.lng || -122.4324, location?.lat || 37.78825 ]}
+									zoomLevel={12}
+								/>
+								{location && (
+									<MapLibre.PointAnnotation id="picked_loc" coordinate={[location.lng, location.lat]}>
+										<View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
+									</MapLibre.PointAnnotation>
+								)}
+							</MapLibre.MapView>
+							{/* Map type toggle removed on Android to avoid Google base map */}
+							<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
+								<Ionicons name="locate" size={16} color={themeColors.primary} />
+								<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
+							</Pressable>
+							<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
+								<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
+							</View>
+						</View>
+					) : (MapComponents ? (
 						<View style={styles.mapBox}>
 							<MapComponents.MapView style={{ flex: 1 }}
 								initialRegion={{ latitude: location?.lat || 37.78825, longitude: location?.lng || -122.4324, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
 								onPress={onMapPress}
-								mapType={mapType}
+								mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
 								ref={MapRef}
 							>
 								{MapComponents.UrlTile ? (
-									<MapComponents.UrlTile urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maximumZ={19} flipY={false} />
+									<MapComponents.UrlTile urlTemplate={tile.urlTemplate} maximumZ={19} flipY={false} />
 								) : null}
 								{location && (
 									<MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
 								)}
 							</MapComponents.MapView>
-							<Pressable onPress={() => setMapType(m => m === 'standard' ? 'hybrid' : 'standard')} style={styles.overlayToggle} accessibilityLabel="Toggle map type">
-								<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
-							</Pressable>
+							{/* Map type toggle removed on Android to avoid Google base map */}
+							{Platform.OS !== 'android' && (
+								<Pressable onPress={() => setMapType(m => m === 'standard' ? 'hybrid' : 'standard')} style={styles.overlayToggle} accessibilityLabel="Toggle map type">
+									<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
+								</Pressable>
+							)}
 							<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
 								<Ionicons name="locate" size={16} color={themeColors.primary} />
 								<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
 							</Pressable>
+							<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
+								<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
+							</View>
 						</View>
 					) : (
 						<Text style={{ color: themeColors.textSecondary, marginTop: 8, fontSize: 12 }}>Map preview unavailable.</Text>
@@ -520,7 +578,7 @@ export default function EditNoteScreen() {
 async function geocodeToLabel(query: string): Promise<{ lat: number; lng: number; label: string }[]> {
 	try {
 		if (!query.trim()) return [];
-		// Prefer Google Places API if key available
+		// Prefer MapTiler Geocoding (if key provided), then OSM Nominatim
 		const placeHits = await searchPlaces(query.trim());
 		if (placeHits.length) return placeHits;
 		const results = await Location.geocodeAsync(query.trim());

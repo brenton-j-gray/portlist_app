@@ -481,50 +481,15 @@ export async function searchPortsOnline(query: string, limit = 5): Promise<PortE
   }
 }
 
-// Google Places fallback (requires EXPO_PUBLIC_GOOGLE_PLACES_KEY). Returns [] if no key.
-export async function searchPortsGooglePlaces(query: string, limit = 5): Promise<PortEntry[]> {
-  const key = (Platform as any).OS ? (process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY || '') : '';
-  if (!key) return [];
-  const q = query.trim();
-  if (!q) return [];
-  try {
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(q)}&key=${key}`;
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!data || !Array.isArray(data.results)) return [];
-    const out: PortEntry[] = [];
-    for (const r of data.results) {
-      const name: string = r.name;
-      if (!name) continue;
-      const lat = r.geometry?.location?.lat;
-      const lng = r.geometry?.location?.lng;
-      if (!isFinite(lat) || !isFinite(lng)) continue;
-      const nameLower = name.toLowerCase();
-      if (!/port|harbor|harbour|pier|dock|quay|marina|cruise|terminal/.test(nameLower)) continue;
-      out.push({ name, country: undefined, regionCode: undefined, lat, lng, source: 'online', kind: /cruise|terminal/.test(nameLower) ? 'cruise-terminal' : 'port', isCruise: /cruise|terminal/.test(nameLower) });
-      if (out.length >= limit) break;
-    }
-    return out;
-  } catch {
-    return [];
-  }
-}
+// Removed Google Places fallback — rely on curated/cache/master and OSM-based search only.
 
-// Unified search: master+cache+curated first, then Google Places, then Nominatim
+// Unified search: master+cache+curated first, then Nominatim
 export async function unifiedPortSearch(query: string, cache: PortEntry[], desired = 10): Promise<PortEntry[]> {
   await loadMasterPorts(); // ensure master dataset is loaded
   const local = searchPorts(query, cache, desired);
   if (local.length >= desired) return local.slice(0, desired);
   const seen = new Set(local.map(p => normalize(p.name)+ '|' + (p.country||'') + '|' + (p.regionCode||'')));
-  const google = await searchPortsGooglePlaces(query, Math.max(0, desired - local.length));
-  // persist google results
-  if (google.length) { persistOnlinePorts(google, query).catch(()=>{}); }
   const merged1 = [...local];
-  for (const g of google) {
-    const key = normalize(g.name)+'|'+(g.country||'')+'|'+(g.regionCode||'');
-    if (!seen.has(key)) { merged1.push(g); seen.add(key); }
-    if (merged1.length >= desired) return merged1;
-  }
   const osm = await searchPortsOnline(query, Math.max(0, desired - merged1.length));
   if (osm.length) { persistOnlinePorts(osm, query).catch(()=>{}); }
   for (const o of osm) {

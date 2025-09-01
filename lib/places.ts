@@ -1,11 +1,10 @@
-// Google Places / Geocoding helper.
-// Uses the Places Autocomplete + Place Details endpoints to build rich labels.
-// Requires an environment variable EXPO_PUBLIC_GOOGLE_PLACES_KEY (public, restricted key).
-// Falls back to empty result if key missing or quota exceeded.
+// Geocoding helper (no Google).
+// Uses MapTiler Geocoding if EXPO_PUBLIC_MAPTILER_KEY is provided; otherwise falls back to OSM Nominatim.
+// Both are public endpoints — please comply with each provider's usage policy.
 
 export interface PlaceHit { lat: number; lng: number; label: string }
 
-const KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_KEY;
+const MAPTILER_KEY = process.env.EXPO_PUBLIC_MAPTILER_KEY;
 
 // Simple in-memory caches to reduce network chatter during a session
 const predictionCache = new Map<string, PlaceHit[]>();
@@ -24,51 +23,47 @@ function buildLabel(name?: string, address?: string): string {
 
 export async function searchPlaces(query: string, limit = 8): Promise<PlaceHit[]> {
   try {
-    if (!KEY) return [];
     const q = query.trim();
     if (!q) return [];
     if (predictionCache.has(q)) return predictionCache.get(q)!;
 
-    const autoUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(q)}&types=geocode&components=country&key=${KEY}`;
-    const autoRes = await fetch(autoUrl);
-    const autoJson: any = await autoRes.json();
-    if (autoJson.status !== 'OK' || !autoJson.predictions?.length) {
-      predictionCache.set(q, []);
-      return [];
+    let results: PlaceHit[] = [];
+    if (MAPTILER_KEY) {
+      // MapTiler Geocoding (Mapbox-compatible API)
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${MAPTILER_KEY}&limit=${limit}`;
+      const res = await fetch(url);
+      const data: any = await res.json();
+      if (data && Array.isArray(data.features)) {
+        results = data.features.map((f: any) => {
+          const [lng, lat] = f.center || f.geometry?.coordinates || [undefined, undefined];
+          const label = f.place_name || f.text || f.properties?.name || q;
+          return (isFinite(lat) && isFinite(lng)) ? { lat, lng, label: String(label).slice(0, 120) } : undefined;
+        }).filter(Boolean) as PlaceHit[];
+      }
     }
-    const predictions: any[] = autoJson.predictions.slice(0, limit);
-    // Fetch details in parallel (cap at 5 to limit quota)
-    const detailPromises = predictions.map(async (p, idx) => {
-      try {
-        const pid = p.place_id;
-        if (detailsCache.has(pid)) return { prediction: p, details: detailsCache.get(pid)! };
-        if (idx >= 5) return { prediction: p, details: null }; // defer details beyond first 5
-        const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${pid}&fields=geometry,name,formatted_address&key=${KEY}`;
-        const res = await fetch(url);
-        const json: any = await res.json();
-        if (json.status !== 'OK') return { prediction: p, details: null };
-        const det = json.result;
-        const val = {
-          lat: det.geometry?.location?.lat,
-            lng: det.geometry?.location?.lng,
-            name: det.name,
-            address: det.formatted_address,
-        };
-        if (val.lat && val.lng) detailsCache.set(pid, val);
-        return { prediction: p, details: val };
-      } catch { return { prediction: p, details: null }; }
-    });
 
-    const withDetails = await Promise.all(detailPromises);
-    const hits: PlaceHit[] = withDetails.map(({ prediction, details }) => {
-      const lat = details?.lat;
-      const lng = details?.lng;
-      const label = buildLabel(details?.name, details?.address) || prediction.description || q;
-      return lat && lng ? { lat, lng, label } : undefined;
-    }).filter(Boolean) as PlaceHit[];
+    if (!results.length) {
+      // OSM Nominatim fallback
+      const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&limit=${limit}`;
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'PortlistApp/1.0 (contact: support@portlist.app)',
+          'Accept-Language': 'en',
+        },
+      });
+      const data: any = await res.json();
+      if (Array.isArray(data)) {
+        results = data.map((it: any) => {
+          const lat = parseFloat(it.lat);
+          const lng = parseFloat(it.lon);
+          const label = it.display_name || it.name || q;
+          return (isFinite(lat) && isFinite(lng)) ? { lat, lng, label: String(label).slice(0, 120) } : undefined;
+        }).filter(Boolean) as PlaceHit[];
+      }
+    }
 
-    predictionCache.set(q, hits);
-    return hits;
+    predictionCache.set(q, results);
+    return results.slice(0, limit);
   } catch {
     return [];
   }
