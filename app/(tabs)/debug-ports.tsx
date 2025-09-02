@@ -5,6 +5,10 @@ import { useToast } from '../../components/ToastContext';
 import { clearPortsCache, PortEntry, removeCachedPortByName, sanitizePortQuery } from '../../lib/ports';
 import { PortsCache } from '../../lib/portsCache';
 
+/**
+ * React component DebugPortsScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function DebugPortsScreen() {
   const isDev = !!(global as any).__DEV__;
   const { themeColors } = useTheme();

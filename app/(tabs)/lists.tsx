@@ -8,6 +8,10 @@ import { deleteList, getLists, uid, upsertList } from '../../lib/storage';
 import { List, ListItem } from '../../types';
 
 // Simple inline create + manage lists (bucket, packing, custom). Future enhancement: dedicated edit screen.
+/**
+ * React component ListsScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function ListsScreen() {
   const { themeColors, colorScheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -76,7 +80,11 @@ export default function ListsScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  function createList() {
+  /**
+     * React component createList: TODO describe purpose and where it’s used.
+     * @returns {void} TODO: describe
+     */
+    function createList() {
     if (!newTitle.trim()) return;
     setCreating(true);
     const now = Date.now();
@@ -84,13 +92,30 @@ export default function ListsScreen() {
     upsertList(list).then(load).finally(() => { setNewTitle(''); setCreating(false); setShowModal(false); setNewType('custom'); });
   }
 
-  function toggleItem(listId: string, itemId: string) {
+  /**
+     * React component toggleItem: TODO describe purpose and where it’s used.
+     * @param {string} listId - TODO: describe
+     * @param {string} itemId - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function toggleItem(listId: string, itemId: string) {
     setLists(curr => curr.map(l => l.id === listId ? { ...l, items: l.items.map(it => it.id === itemId ? { ...it, done: !it.done } : it), updatedAt: Date.now() } : l));
   }
 
-  function persist(list: List) { upsertList(list).catch(() => {}); }
+  /**
+     * React component persist: TODO describe purpose and where it’s used.
+     * @param {import("D:/Code/portlist_app/types").List} list - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function persist(list: List) { upsertList(list).catch(() => {}); }
 
-  function addItem(listId: string, text: string) {
+  /**
+     * React component addItem: TODO describe purpose and where it’s used.
+     * @param {string} listId - TODO: describe
+     * @param {string} text - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function addItem(listId: string, text: string) {
     if (!text.trim()) return;
     setLists(curr => curr.map(l => {
       if (l.id !== listId) return l;
@@ -101,11 +126,25 @@ export default function ListsScreen() {
     }));
   }
 
-  const ListItems: React.FC<{ list: List; textColor?: string; fadedColor?: string; accentColor?: string }> = ({ list, textColor, fadedColor, accentColor }) => {
+  const ListItems: React.FC<{ list: List; textColor?: string; fadedColor?: string; accentColor?: string }> = /**
+   * React component ListItems: TODO describe purpose and where it’s used.
+   * @param {any} { list, textColor, fadedColor, accentColor } - TODO: describe
+   * @returns {React.JSX.Element} TODO: describe
+   */
+  ({ list, textColor, fadedColor, accentColor }) => {
     const [draft, setDraft] = useState('');
     const data = useMemo(() => [...list.items].sort((a,b)=>a.order-b.order), [list.items]);
-    const handleAdd = () => { addItem(list.id, draft); setDraft(''); };
-    const renderItem = ({ item, drag, isActive }: RenderItemParams<ListItem>) => (
+    const handleAdd = /**
+     * React component handleAdd: TODO describe purpose and where it’s used.
+     * @returns {void} TODO: describe
+     */
+    () => { addItem(list.id, draft); setDraft(''); };
+    const renderItem = /**
+     * React component renderItem: TODO describe purpose and where it’s used.
+     * @param {any} { item, drag, isActive } - TODO: describe
+     * @returns {React.JSX.Element} TODO: describe
+     */
+    ({ item, drag, isActive }: RenderItemParams<ListItem>) => (
       <View style={[styles.itemRow, { opacity: isActive ? 0.7 : 1 }]}>    
         <Pressable onLongPress={drag} style={styles.dragHandle} accessibilityLabel="Drag handle">
           <Ionicons name="reorder-three-outline" size={20} color={themeColors.textSecondary} />
@@ -162,19 +201,42 @@ export default function ListsScreen() {
     );
   };
 
-  const EditableListCard: React.FC<{ item: List }> = ({ item }) => {
+  const EditableListCard: React.FC<{ item: List }> = /**
+   * React component EditableListCard: TODO describe purpose and where it’s used.
+   * @param {{ item: import("D:/Code/portlist_app/types").List; }} { item } - TODO: describe
+   * @returns {React.JSX.Element} TODO: describe
+   */
+  ({ item }) => {
     const baseColor = item.color || themeColors.primary;
     // Utility: clamp and mix helpers
-    const mix = (a:string,b:string,ratio:number) => {
+    const mix = /**
+     * React component mix: TODO describe purpose and where it’s used.
+     * @param {string} a - TODO: describe
+     * @param {string} b - TODO: describe
+     * @param {number} ratio - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    (a:string,b:string,ratio:number) => {
       if(!/^#?[0-9a-fA-F]{6}$/.test(a) || !/^#?[0-9a-fA-F]{6}$/.test(b)) return a;
       const ah=a.replace('#',''); const bh=b.replace('#','');
       const ar=parseInt(ah.slice(0,2),16), ag=parseInt(ah.slice(2,4),16), ab=parseInt(ah.slice(4,6),16);
       const br=parseInt(bh.slice(0,2),16), bg=parseInt(bh.slice(2,4),16), bb=parseInt(bh.slice(4,6),16);
       const rr=Math.round(ar+(br-ar)*ratio), rg=Math.round(ag+(bg-ag)*ratio), rb=Math.round(ab+(bb-ab)*ratio);
-      const hx=(n:number)=>n.toString(16).padStart(2,'0');
+      const hx=/**
+       * React component hx: TODO describe purpose and where it’s used.
+       * @param {number} n - TODO: describe
+       * @returns {string} TODO: describe
+       */
+      (n:number)=>n.toString(16).padStart(2,'0');
       return `#${hx(rr)}${hx(rg)}${hx(rb)}`;
     };
-    const elevate = (hex:string, amount=0.06) => mix(hex,'#ffffff',amount);
+    const elevate = /**
+     * React component elevate: TODO describe purpose and where it’s used.
+     * @param {string} hex - TODO: describe
+     * @param {number} amount - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    (hex:string, amount=0.06) => mix(hex,'#ffffff',amount);
     // New strategy:
     // Light mode: a softly elevated tinted surface (card mixed toward baseColor a bit, then slightly lightened).
     // Dark mode: start from card surface, blend in small amount of baseColor (gives identity) then very slight lighten; no translucency to avoid glow.
@@ -189,7 +251,12 @@ export default function ListsScreen() {
     })();
     const contrastColor = (() => {
       // Compute luminance of resolved background (remove alpha if present)
-      const parseRgb = (val: string) => {
+      const parseRgb = /**
+       * React component parseRgb: TODO describe purpose and where it’s used.
+       * @param {string} val - TODO: describe
+       * @returns {number[]} TODO: describe
+       */
+      (val: string) => {
         if (val.startsWith('rgba') || val.startsWith('rgb')) {
           const m = val.match(/rgba?\((\d+),(\d+),(\d+)/);
           if (m) return [parseInt(m[1],10), parseInt(m[2],10), parseInt(m[3],10)];
@@ -200,7 +267,12 @@ export default function ListsScreen() {
         return [0,0,0];
       };
       const [cr,cg,cb] = parseRgb(bgColor as string);
-      const lin = (c:number)=>{ const n=c/255; return n<=0.03928? n/12.92 : Math.pow((n+0.055)/1.055,2.4); };
+      const lin = /**
+       * React component lin: TODO describe purpose and where it’s used.
+       * @param {number} c - TODO: describe
+       * @returns {number} TODO: describe
+       */
+      (c:number)=>{ const n=c/255; return n<=0.03928? n/12.92 : Math.pow((n+0.055)/1.055,2.4); };
       const L = 0.2126*lin(cr)+0.7152*lin(cg)+0.0722*lin(cb);
   // Threshold tuned for semi-translucent dark surfaces
   if (L < 0.55) return themeColors.text; // use provided theme text color for darker surfaces
@@ -209,20 +281,33 @@ export default function ListsScreen() {
     const [editing, setEditing] = useState(false);
     const [draftTitle, setDraftTitle] = useState(item.title);
     const [showColorPicker, setShowColorPicker] = useState(false);
-    const saveTitle = () => {
+    const saveTitle = /**
+     * React component saveTitle: TODO describe purpose and where it’s used.
+     * @returns {void} TODO: describe
+     */
+    () => {
       if (!draftTitle.trim()) return;
       const next = { ...item, title: draftTitle.trim(), updatedAt: Date.now() };
       setLists(curr => curr.map(l => l.id === item.id ? next : l));
       upsertList(next);
       setEditing(false);
     };
-    const changeColor = (c: string) => {
+    const changeColor = /**
+     * React component changeColor: TODO describe purpose and where it’s used.
+     * @param {string} c - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    (c: string) => {
       const next = { ...item, color: c, updatedAt: Date.now() };
       setLists(curr => curr.map(l => l.id === item.id ? next : l));
       upsertList(next);
       setShowColorPicker(false);
     };
-    const remove = () => {
+    const remove = /**
+     * React component remove: TODO describe purpose and where it’s used.
+     * @returns {void} TODO: describe
+     */
+    () => {
       Alert.alert('Delete list?', 'This cannot be undone.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: () => { setLists(curr => curr.filter(l => l.id !== item.id)); deleteList(item.id).catch(()=>{}); } },

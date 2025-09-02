@@ -15,16 +15,49 @@
 import { Platform } from 'react-native';
 import { PortsCache } from './portsCache';
 
+/**
+ * Function makeCuratedPort: TODO describe purpose and usage.
+ * @param {any} props - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * makeCuratedPort tags a PortEntry as coming from the curated dataset.
+ */
 export function makeCuratedPort(props: Omit<PortEntry, 'source'>): PortEntry {
   return { ...props, source: 'curated' };
 }
+/**
+ * Function makeCachePort: TODO describe purpose and usage.
+ * @param {any} props - TODO: describe
+ * @param {any} meta - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * makeCachePort creates a cached PortEntry with persistence/timestamps metadata.
+ */
 export function makeCachePort(props: Omit<PortEntry, 'source' | 'savedAt' | 'lastAccessed' | 'originalQuery'>, meta?: { originalQuery?: string }): PortEntry {
   const now = Date.now();
   return { ...props, source: 'cache', savedAt: now, lastAccessed: now, originalQuery: meta?.originalQuery };
 }
+/**
+ * Function makeOnlinePort: TODO describe purpose and usage.
+ * @param {any} props - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * makeOnlinePort tags a PortEntry as fetched online (non-persistent until persisted).
+ */
 export function makeOnlinePort(props: Omit<PortEntry, 'source'>): PortEntry {
   return { ...props, source: 'online' };
 }
+/**
+ * Function makeMasterPort: TODO describe purpose and usage.
+ * @param {any} props - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * makeMasterPort tags a PortEntry as part of the bundled master dataset.
+ */
 export function makeMasterPort(props: Omit<PortEntry, 'source'>): PortEntry {
   return { ...props, source: 'master' };
 }
@@ -59,6 +92,11 @@ const MAX_PORT_CACHE_ENTRIES = PORTS_CACHE_CONFIG.MAX_ENTRIES;
 const CACHE_TTL_MS = PORTS_CACHE_CONFIG.TTL_MS;
 const PERSIST_FUZZY_THRESHOLD = PORTS_CACHE_CONFIG.PERSIST_FUZZY_THRESHOLD;
 
+/**
+ * Function debugLog: TODO describe purpose and usage.
+ * @param {any} args - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function debugLog(...args: any[]) {
   try {
     if ((global as any).__DEV__ && console && console.debug) console.debug(...args);
@@ -101,6 +139,10 @@ const curatedPorts: PortEntry[] = Array.isArray(curatedJson) && curatedJson.leng
 // -------- Master Ports Dataset (large) --------
 let masterPortsLoaded = false;
 let masterPorts: PortEntry[] = [];
+/**
+ * Function loadMasterPorts: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 async function loadMasterPorts(): Promise<PortEntry[]> {
   if (masterPortsLoaded) return masterPorts;
   try {
@@ -134,6 +176,12 @@ async function loadMasterPorts(): Promise<PortEntry[]> {
 }
 
 // Persist online-fetched ports (Google / Nominatim) into local cache & in-memory master list
+/**
+ * Function persistOnlinePorts: TODO describe purpose and usage.
+ * @param {any} fetched - TODO: describe
+ * @param {any} query - TODO: describe
+ * @returns {any} TODO: describe
+ */
 async function persistOnlinePorts(fetched: PortEntry[], query?: string) {
   if (!fetched || fetched.length === 0) return;
   try {
@@ -179,31 +227,77 @@ async function persistOnlinePorts(fetched: PortEntry[], query?: string) {
 }
 
 
+/**
+ * Function clearPortsCache: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
+/**
+ * clearPortsCache wipes the persisted ports cache from AsyncStorage.
+ */
 export async function clearPortsCache(): Promise<void> {
   await PortsCache.clear();
   debugLog('[ports] clearPortsCache: cleared AsyncStorage cache');
 }
 
+/**
+ * Function upsertCachedPort: TODO describe purpose and usage.
+ * @param {any} entry - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * upsertCachedPort inserts or updates a port entry in the local cache.
+ */
 export async function upsertCachedPort(entry: PortEntry): Promise<void> {
   await PortsCache.upsert(entry);
 }
 
 // Remove a cached port by name (case/diacritics-insensitive). Returns true if removed.
+/**
+ * Function removeCachedPortByName: TODO describe purpose and usage.
+ * @param {any} name - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * removeCachedPortByName deletes a cached port matching the given name (case/diacritics-insensitive).
+ * Returns true if a record was removed.
+ */
 export async function removeCachedPortByName(name: string): Promise<boolean> {
   const ok = await PortsCache.removeByName(name);
   if (ok) debugLog(`[ports] removeCachedPortByName: removed '${name}'`);
   return ok;
 }
 
+/**
+ * Function stripDiacritics: TODO describe purpose and usage.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function stripDiacritics(s: string): string {
   try { return s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch { return s; }
 }
+/**
+ * Function normalize: TODO describe purpose and usage.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * normalize lowercases and strips diacritics/whitespace from a string for fuzzy matching.
+ */
 export function normalize(s: string): string {
   return stripDiacritics(s).trim().toLowerCase();
 }
 
 // Try to clean up noisy user-supplied port strings like
 // "History of the Port of Tianjin" -> "Tianjin"
+/**
+ * Function sanitizePortQuery: TODO describe purpose and usage.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * sanitizePortQuery removes common “port history” descriptors and parentheses from user input
+ * to yield a cleaner place name for matching.
+ */
 export function sanitizePortQuery(s: string): string {
   if (!s) return s;
   let q = s.trim();
@@ -227,6 +321,12 @@ export function sanitizePortQuery(s: string): string {
 }
 
 // Lightweight Jaro-Winkler for better short fuzzy matches (improves e.g. "cozuml" -> "Cozumel")
+/**
+ * Function jaroWinkler: TODO describe purpose and usage.
+ * @param {any} a - TODO: describe
+ * @param {any} b - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function jaroWinkler(a: string, b: string): number {
   if (a === b) return 1;
   const al = a.length, bl = b.length;
@@ -266,6 +366,12 @@ function jaroWinkler(a: string, b: string): number {
   return jaro;
 }
 
+/**
+ * Function levenshtein: TODO describe purpose and usage.
+ * @param {any} a - TODO: describe
+ * @param {any} b - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function levenshtein(a: string, b: string): number {
   const m = a.length, n = b.length;
   if (m === 0) return n;
@@ -285,6 +391,16 @@ function levenshtein(a: string, b: string): number {
   return dp[n];
 }
 
+/**
+ * Function scoreName: TODO describe purpose and usage.
+ * @param {any} query - TODO: describe
+ * @param {any} candidate - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * scoreName computes a fuzzy similarity 0..1 between query and candidate using tokenized prefix
+ * and Levenshtein/Jaro‑Winkler fallbacks. Heavily used by searchPorts.
+ */
 export function scoreName(query: string, candidate: string): number {
   const qRaw = normalize(query);
   const c = normalize(candidate);
@@ -316,13 +432,33 @@ export function scoreName(query: string, candidate: string): number {
 }
 
 // Optional: external callers can feed recent port names (most-used) for a slight boost
-export function searchPorts(query: string, cache: PortEntry[], limit = 10, recentNames?: string[], includeMaster = true): PortEntry[] {
+/**
+ * Function searchPorts: TODO describe purpose and usage.
+ * @param {any} query - TODO: describe
+ * @param {any} cache - TODO: describe
+ * @param {any} limit - TODO: describe
+ * @param {any} recentNames - TODO: describe
+ * @param {any} includeMaster - TODO: describe
+ * @param {any} includeCurated - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * searchPorts searches curated/master and cache (configurable) for port‑like entries matching a query.
+ * Applies port‑specific heuristics (aliases, country/region hints) and returns top N unique matches.
+ */
+export function searchPorts(query: string, cache: PortEntry[], limit = 10, recentNames?: string[], includeMaster = true, includeCurated = true): PortEntry[] {
   if (!query.trim()) return [];
   const recentSet = new Set((recentNames || []).map(n => normalize(n)).slice(0, 24));
-  // Prefer curated ports first so the curated, authoritative list wins over any cached online results
-  const pool = includeMaster ? [...curatedPorts, ...cache, ...masterPorts] : [...curatedPorts, ...cache];
+  // Compose pool per flags. For geolocation from map interactions we can exclude curated.
+  const curatedPart = includeCurated ? curatedPorts : [] as PortEntry[];
+  const pool = includeMaster ? [...curatedPart, ...cache, ...masterPorts] : [...curatedPart, ...cache];
   const short = query.trim().length <= 3; // for short prefixes, relax constraints
-  const isPorty = (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier|dock|quay|marina)\b/i.test(s);
+  const isPorty = /**
+   * Function isPorty: TODO describe purpose and usage.
+   * @param {string} s - TODO: describe
+   * @returns {boolean} TODO: describe
+   */
+  (s: string) => /\b(port|harbour|harbor|seaport|ferry|terminal|cruise|pier|dock|quay|marina)\b/i.test(s);
   const qNorm = normalize(query);
   const scored = pool.map(p => {
     const base = scoreName(qNorm, p.name);
@@ -369,6 +505,10 @@ export function searchPorts(query: string, cache: PortEntry[], limit = 10, recen
   return Array.from(dedup.values());
 }
 
+/**
+ * resolvePortByName resolves a user‑typed name to a cached PortEntry using sanitization, exact/alias
+ * matches and fuzzy search on the primary token (cache‑only). Does not hit the network.
+ */
 export function resolvePortByName(name: string, cache: PortEntry[]): PortEntry | undefined {
   const q = name.trim();
   if (!q) return undefined;
@@ -376,9 +516,8 @@ export function resolvePortByName(name: string, cache: PortEntry[]): PortEntry |
   if (sanitized !== q) {
     console.debug && console.debug(`[ports] resolvePortByName: sanitized '${q}' -> '${sanitized}'`);
   }
-  // 1) Try direct fuzzy search
-  // Prefer curated+cache-only first to avoid noisy master entries (e.g., 'History of the Port of X')
-  const hits = searchPorts(sanitized, cache, 1, undefined, false);
+  // 1) Try direct fuzzy search on CACHE ONLY (exclude curated/master)
+  const hits = searchPorts(sanitized, cache, 1, undefined, false, false);
   if (hits[0]) return hits[0];
 
   // 2) If the query contains qualifiers like "City, ST, CC", try the primary token before the first comma
@@ -386,28 +525,25 @@ export function resolvePortByName(name: string, cache: PortEntry[]): PortEntry |
   if (primary && primary.length >= 2 && primary.toLowerCase() !== q.toLowerCase()) {
     const normPrimary = normalize(primary);
 
-  // 2a) Exact name match in curated first, then cache (prefer curated authoritative list)
-  const exactCurated = curatedPorts.find(p => normalize(p.name) === normPrimary);
-  if (exactCurated) return exactCurated;
+  // 2a) Exact name match in cache only
   const exactCache = cache.find(p => normalize(p.name) === normPrimary);
   if (exactCache) return exactCache;
 
-  // 2c) Alias exact match across curated + cache (curated first)
-  const pool = [...curatedPorts, ...cache];
-    const aliasExact = pool.find(p => (p.aliases || []).some(a => normalize(a) === normPrimary));
-    if (aliasExact) {
-      console.debug && console.debug(`[ports] resolvePortByName: '${q}' -> '${aliasExact.name}' (alias exact match)`);
-      return aliasExact;
-    }
+  // 2c) Alias exact match within cache only
+  const aliasExact = cache.find(p => (p.aliases || []).some(a => normalize(a) === normPrimary));
+  if (aliasExact) {
+    console.debug && console.debug(`[ports] resolvePortByName: '${q}' -> '${aliasExact.name}' (alias exact match)`);
+    return aliasExact;
+  }
 
   // 2d) Fuzzy search on the primary token (curated+cache-only to prefer authoritative matches)
-  const hitsPrimary = searchPorts(primary, cache, 1, undefined, false);
+  const hitsPrimary = searchPorts(primary, cache, 1, undefined, false, false);
     if (hitsPrimary[0]) return hitsPrimary[0];
 
     // 2e) Fuzzy with port-like variants to boost likelihood
     const variants = [`${primary} cruise port`, `${primary} port`];
     for (const v of variants) {
-      const hv = searchPorts(v, cache, 1);
+      const hv = searchPorts(v, cache, 1, undefined, false, false);
       if (hv[0]) {
         console.debug && console.debug(`[ports] resolvePortByName: '${q}' -> '${hv[0].name}' (variant '${v}')`);
         return hv[0];
@@ -418,72 +554,122 @@ export function resolvePortByName(name: string, cache: PortEntry[]): PortEntry |
   return undefined;
 }
 
+/**
+ * Function getCuratedPorts: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
+/**
+ * getCuratedPorts returns a shallow copy of the bundled curated cruise ports list.
+ */
 export function getCuratedPorts(): PortEntry[] {
   return curatedPorts.slice();
 }
 
 // Basic fuzzy matcher: true if similarity is above threshold using same scoring as searchPorts
+/**
+ * Function fuzzyMatch: TODO describe purpose and usage.
+ * @param {any} query - TODO: describe
+ * @param {any} candidate - TODO: describe
+ * @param {any} minScore - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * fuzzyMatch returns true if the candidate string is similar enough to the query for our purposes.
+ */
 export function fuzzyMatch(query: string, candidate?: string | null, minScore = 0.7): boolean {
   if (!candidate) return false;
   return scoreName(query, candidate) >= minScore;
 }
 
 // Online geocoding fallback using OpenStreetMap Nominatim
+/**
+ * Function searchPortsOnline: TODO describe purpose and usage.
+ * @param {any} query - TODO: describe
+ * @param {any} limit - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * searchPortsOnline queries MapTiler (if configured) and then OSM Nominatim for port‑like places.
+ * Filters out airports/airfields/heliports and tries to retain cruise‑relevant results.
+ */
 export async function searchPortsOnline(query: string, limit = 5): Promise<PortEntry[]> {
   const q = query.trim();
   if (!q) return [];
+  const results: PortEntry[] = [];
+  const isEnglishLike = /**
+   * Function isEnglishLike: TODO describe purpose and usage.
+   * @param {string} label - TODO: describe
+   * @returns {boolean} TODO: describe
+   */
+  (label: string) => !!label && !/[^\x00-\x7F]/.test(label) && /[A-Za-z]{2,}/.test(label);
+  // Prefer MapTiler geocoding if configured (better availability than raw Nominatim)
+  const maptilerKey = (Platform as any).OS ? (process.env.EXPO_PUBLIC_MAPTILER_KEY || '') : '';
+  if (maptilerKey) {
+    try {
+      const url = `https://api.maptiler.com/geocoding/${encodeURIComponent(q)}.json?key=${maptilerKey}&limit=${limit}&language=en&types=poi,place,locality`;
+      const res = await fetch(url);
+      const data: any = await res.json();
+      if (data && Array.isArray(data.features)) {
+        for (const f of data.features) {
+          const label: string = f.place_name || f.text || f.properties?.name || '';
+          const coords = f.center || f.geometry?.coordinates;
+          const lng = Array.isArray(coords) ? Number(coords[0]) : NaN;
+          const lat = Array.isArray(coords) ? Number(coords[1]) : NaN;
+          if (!label || !isFinite(lat) || !isFinite(lng) || !isEnglishLike(label)) continue;
+          const lower = label.toLowerCase();
+          // Explicitly exclude airports/airfields/heliports (avoid 'airport' matching 'port')
+          if (/(airport|air\s?field|airfield|heliport|heli\s?port)/i.test(lower)) continue;
+          // Keep only port-like results
+          if (!/(harbour|harbor|\bport\b|seaport|ferry|terminal|cruise|pier|dock|quay|marina)/i.test(lower)) continue;
+          results.push({ name: label, lat, lng, source: 'online', kind: /cruise|terminal/.test(lower) ? 'cruise-terminal' : 'port', isCruise: /cruise|terminal/.test(lower) });
+          if (results.length >= limit) return results;
+        }
+      }
+    } catch {}
+  }
+  // Fallback to OpenStreetMap Nominatim
   try {
     const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(q)}&addressdetails=1&limit=${limit}`;
-    const res = await fetch(url, {
-      headers: {
-  'User-Agent': 'portlist/1.0',
-        'Accept-Language': 'en',
-      },
-    } as any);
+    const res = await fetch(url, { headers: { 'User-Agent': 'portlist/1.0', 'Accept-Language': 'en' } } as any);
     const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    const out: { e: PortEntry; s: number; porty: boolean }[] = [];
+    if (!Array.isArray(data)) return results;
     for (const it of data) {
       const name: string = it?.name || it?.display_name?.split(',')[0] || '';
       const lat = parseFloat(it?.lat);
       const lng = parseFloat(it?.lon);
       const cc: string | undefined = it?.address?.country_code ? String(it.address.country_code).toUpperCase() : undefined;
       const regionCode = deriveRegionCode(it?.address);
-      if (!name || !isFinite(lat) || !isFinite(lng)) continue;
-      // Restrict to likely port/cruise features only (no land-locked cities)
+      if (!name || !isFinite(lat) || !isFinite(lng) || !isEnglishLike(name)) continue;
       const typ = String(it?.type || '');
       const cls = String(it?.class || '');
       const nameLower = name.toLowerCase();
+      // Exclude aeroway/airport-like results
+      if (/aeroway/i.test(cls) || /airport|air\s?field|airfield|heliport|heli\s?port/i.test(nameLower)) continue;
       const isLikelyPortType = /harbour|harbor|port|seaport|ferry_terminal|ferry|pier|dock|quay|marina/i.test(typ) || /waterway|amenity|man_made/i.test(cls);
       const hasCruiseHint = /cruise|terminal|pier|portmiami|canada place|ogden point/i.test(nameLower);
-      const isLikelyPort = isLikelyPortType || /harbour|harbor|port|pier|dock|quay/i.test(nameLower);
-      if (!isLikelyPort) continue; // skip non-porty results entirely
-      const s = scoreName(q, name);
-      const isCruise = hasCruiseHint;
-      const kind: PortEntry['kind'] = hasCruiseHint ? 'cruise-terminal' : (
-        /ferry/i.test(typ) ? 'ferry-terminal' : (/harbour|harbor|port|seaport/i.test(typ) ? 'port' : (/pier|dock|quay/i.test(typ) ? 'pier' : (/marina/i.test(typ) ? 'marina' : 'other')))
-      );
-      out.push({ e: { name, country: cc, regionCode, lat, lng, source: 'online', kind, isCruise }, s, porty: true });
+      const isLikelyPort = isLikelyPortType || /harbour|harbor|\bport\b|pier|dock|quay/i.test(nameLower);
+      if (!isLikelyPort) continue;
+      results.push({ name, country: cc, regionCode, lat, lng, source: 'online', kind: hasCruiseHint ? 'cruise-terminal' : 'port', isCruise: hasCruiseHint });
+      if (results.length >= limit) break;
     }
-    // Sort: prefer likely ports, then by score
-    out.sort((a, b) => (Number((b.e.isCruise ? 1 : 0) - (a.e.isCruise ? 1 : 0))) || (b.s - a.s));
-    // Deduplicate by name+country+region
-    const seen = new Set<string>();
-    const dedup: PortEntry[] = [];
-    for (const { e: p } of out) {
-      const key = `${normalize(p.name)}|${p.country || ''}|${p.regionCode || ''}`;
-      if (!seen.has(key)) { seen.add(key); dedup.push(p); }
-      if (dedup.length >= limit) break;
-    }
-    return dedup;
-  } catch {
-    return [];
-  }
+  } catch {}
+  return results;
 }
 
 // Removed Google Places fallback — rely on curated/cache/master and OSM-based search only.
 
 // Unified search: master+cache+curated first, then Nominatim
+/**
+ * Function unifiedPortSearch: TODO describe purpose and usage.
+ * @param {any} query - TODO: describe
+ * @param {any} cache - TODO: describe
+ * @param {any} desired - TODO: describe
+ * @returns {any} TODO: describe
+ */
+/**
+ * unifiedPortSearch first searches curated/master/cache locally; if insufficient, augments results
+ * with online geocoding and persists confident matches. Returns a deduped list up to `desired` items.
+ */
 export async function unifiedPortSearch(query: string, cache: PortEntry[], desired = 10): Promise<PortEntry[]> {
   await loadMasterPorts(); // ensure master dataset is loaded
   const local = searchPorts(query, cache, desired);
@@ -501,6 +687,11 @@ export async function unifiedPortSearch(query: string, cache: PortEntry[], desir
 }
 
 // Best-effort region code extraction from Nominatim address for US/CA
+/**
+ * Function deriveRegionCode: TODO describe purpose and usage.
+ * @param {any} address - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function deriveRegionCode(address: any): string | undefined {
   if (!address) return undefined;
   // Prefer provided state_code if present

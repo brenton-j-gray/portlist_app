@@ -8,6 +8,11 @@ import { useTheme } from '../ThemeContext';
 
 // A single, reusable header used by both Tabs and nested Stack screens.
 // It respects per-screen options like title and headerRight when provided.
+/**
+ * React component AppHeader: TODO describe purpose and where it’s used.
+ * @param {any} props - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export default function AppHeader(props: any) {
   const { themeColors } = useTheme();
   const { token, userName, userEmail } = useAuth();
@@ -16,7 +21,12 @@ export default function AppHeader(props: any) {
   const pathname = usePathname();
 
   // Compute the next-higher screen in our nav hierarchy from the current path
-  const getParentPath = (path: string | null | undefined): string | null => {
+  const getParentPath = /**
+   * React component getParentPath: TODO describe purpose and where it’s used.
+   * @param {string | null | undefined} path - TODO: describe
+   * @returns {string | null} TODO: describe
+   */
+  (path: string | null | undefined): string | null => {
     if (!path) return null;
     const parts = path.split('/').filter(Boolean);
     // Normalize trailing index segments (e.g., /[id]/index -> /[id])

@@ -7,6 +7,12 @@ const API_URL = (process.env.EXPO_PUBLIC_API_URL as string)
   || (global as any).__API_URL__
   || 'http://localhost:4000';
 
+/**
+ * Function authFetch: TODO describe purpose and usage.
+ * @param {any} path - TODO: describe
+ * @param {any} init - TODO: describe
+ * @returns {any} TODO: describe
+ */
 async function authFetch(path: string, init?: RequestInit) {
   const token = await getToken();
   if (!token) throw new Error('not_authenticated');
@@ -23,6 +29,10 @@ async function authFetch(path: string, init?: RequestInit) {
 }
 
 // Pull cloud backup; if newer than local, replace local.
+/**
+ * Function pullTripsIfNewer: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 export async function pullTripsIfNewer(): Promise<boolean> {
   try {
   const cloud = await authFetch('/sync/trips', { method: 'GET' });
@@ -40,6 +50,10 @@ export async function pullTripsIfNewer(): Promise<boolean> {
 }
 
 // Push local trips to cloud (last-write-wins)
+/**
+ * Function pushTrips: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 export async function pushTrips(): Promise<boolean> {
   try {
     const trips = await getTrips();
@@ -52,6 +66,10 @@ export async function pushTrips(): Promise<boolean> {
 }
 
 // Sync helper: try pull, then push. Use on app focus or after local saves.
+/**
+ * Function syncTripsBackground: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 export async function syncTripsBackground() {
   await pullTripsIfNewer();
   await pushTrips();

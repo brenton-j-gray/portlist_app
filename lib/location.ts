@@ -19,8 +19,19 @@ const CA_PROVINCE_MAP: Record<string, string> = {
   'QUEBEC': 'QC', 'SASKATCHEWAN': 'SK', 'YUKON': 'YT'
 };
 
+/**
+ * Function normalize: TODO describe purpose and usage.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function normalize(s?: string) { return (s || '').trim(); }
 
+/**
+ * Function regionCodeFor: TODO describe purpose and usage.
+ * @param {any} region - TODO: describe
+ * @param {any} iso - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function regionCodeFor(region?: string, iso?: string): string | undefined {
   const r = normalize(region);
   const cc = normalize(iso).toUpperCase();
@@ -36,6 +47,13 @@ export function regionCodeFor(region?: string, iso?: string): string | undefined
   return upper.slice(0, 2);
 }
 
+/**
+ * Function shortLocationLabel: TODO describe purpose and usage.
+ * @param {any} fields - TODO: describe
+ * @param {any} lat - TODO: describe
+ * @param {any} lng - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function shortLocationLabel(fields: {
   city?: string | null;
   subregion?: string | null;

@@ -6,6 +6,10 @@ import { Pressable, View } from 'react-native';
 import { useTheme } from '../../components/ThemeContext';
 import AppHeader from '../../components/navigation/AppHeader';
 
+/**
+ * React component TabsLayout: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function TabsLayout() {
   const { themeColors } = useTheme();
   const pathname = usePathname();
@@ -104,6 +108,11 @@ export default function TabsLayout() {
 }
 
 // Floating glossy central Home button
+/**
+ * React component CentralHomeButton: TODO describe purpose and where it’s used.
+ * @param {any} { selected: _selectedFromTabs, onPress } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function CentralHomeButton({ selected: _selectedFromTabs, onPress }: { selected?: boolean; onPress?: () => void }) {
   const { themeColors, colorScheme } = useTheme();
   const pathname = usePathname();

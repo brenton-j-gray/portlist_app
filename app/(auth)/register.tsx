@@ -4,6 +4,10 @@ import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 
+/**
+ * React component RegisterScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function RegisterScreen() {
   const { themeColors } = useTheme();
   const { register } = useAuth();
@@ -24,7 +28,11 @@ export default function RegisterScreen() {
   skipText: { color: themeColors.primaryDark, fontWeight: '700' },
   }), [themeColors]);
 
-  async function onRegister() {
+  /**
+     * React component onRegister: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onRegister() {
     try {
       setBusy(true);
   await register(email.trim().toLowerCase(), password);

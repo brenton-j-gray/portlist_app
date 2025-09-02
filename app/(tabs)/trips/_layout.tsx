@@ -3,6 +3,10 @@ import React, { useMemo } from 'react';
 import { useTheme } from '../../../components/ThemeContext';
 import AppHeader from '../../../components/navigation/AppHeader';
 
+/**
+ * React component TripsStackLayout: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function TripsStackLayout() {
 	const { themeColors } = useTheme();
 	const screenOptions = useMemo(() => ({

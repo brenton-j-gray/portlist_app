@@ -14,6 +14,10 @@ import { getTrips } from '../../lib/storage';
 import { fetchCurrentWeather, keyToLabel, WeatherPill, type WeatherKey } from '../../lib/weather';
 import type { Note, Trip } from '../../types';
 
+/**
+ * React component HomeScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function HomeScreen() {
   const { themeColors } = useTheme();
   const { flags } = useFeatureFlags();
@@ -56,7 +60,12 @@ export default function HomeScreen() {
   }), [themeColors]);
 
   // Format date as: Weekday, DD Month YEAR (e.g., Monday, 18 August 2025)
-  const formatWeekdayDDMonthYYYY = (d: Date) => {
+  const formatWeekdayDDMonthYYYY = /**
+   * React component formatWeekdayDDMonthYYYY: TODO describe purpose and where it’s used.
+   * @param {Date} d - TODO: describe
+   * @returns {string} TODO: describe
+   */
+  (d: Date) => {
     const weekday = d.toLocaleString(undefined, { weekday: 'long' });
     const day = String(d.getDate()).padStart(2, '0');
     const month = d.toLocaleString(undefined, { month: 'long' });

@@ -7,6 +7,10 @@ import { useTheme } from '../../components/ThemeContext';
 // forms moved to a dedicated Security screen
 import { pushTrips, syncTripsBackground } from '../../lib/sync';
 
+/**
+ * React component SettingsScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function SettingsScreen() {
   const { themePreference, setThemePreference, themeColors, themePalette, setThemePalette, availablePalettes } = useTheme();
   const { token, logout } = useAuth();
@@ -62,7 +66,11 @@ export default function SettingsScreen() {
     })();
   }, [autoBackup]);
 
-  async function onBackupNow() {
+  /**
+     * React component onBackupNow: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onBackupNow() {
     setBackupBusy(true);
     try {
       if (!token) throw new Error('Sign in to back up');

@@ -13,6 +13,12 @@ type FeatureFlagsContextType = {
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextType | undefined>(undefined);
 
+/**
+ * React component parseBool: TODO describe purpose and where it’s used.
+ * @param {any} v - TODO: describe
+ * @param {any} fallback - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function parseBool(v: any, fallback: boolean): boolean {
   if (typeof v === 'boolean') return v;
   if (typeof v === 'number') return v !== 0;
@@ -24,6 +30,10 @@ const DEFAULT_FLAGS: FeatureFlags = {
   weather: true,
 };
 
+/**
+ * React component readOverrides: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 async function readOverrides(): Promise<Partial<FeatureFlags>> {
   try {
     const w = await AsyncStorage.getItem('ff_weather');
@@ -35,10 +45,19 @@ async function readOverrides(): Promise<Partial<FeatureFlags>> {
   }
 }
 
+/**
+ * React component FeatureFlagsProvider: TODO describe purpose and where it’s used.
+ * @param {any} { children } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function FeatureFlagsProvider({ children }: { children: React.ReactNode }) {
   const [flags, setFlags] = useState<FeatureFlags>(DEFAULT_FLAGS);
 
-  const computeFromEnv = (): Partial<FeatureFlags> => {
+  const computeFromEnv = /**
+   * React component computeFromEnv: TODO describe purpose and where it’s used.
+   * @returns {any} TODO: describe
+   */
+  (): Partial<FeatureFlags> => {
     // Expo public env vars are available at build/runtime
     const envWeather = (process.env.EXPO_PUBLIC_ENABLE_WEATHER as any);
     const out: Partial<FeatureFlags> = {};
@@ -54,7 +73,13 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const setFlag: FeatureFlagsContextType['setFlag'] = async (key, value) => {
+  const setFlag: FeatureFlagsContextType['setFlag'] = /**
+   * React component setFlag: TODO describe purpose and where it’s used.
+   * @param {K} key - TODO: describe
+   * @param {import("D:/Code/portlist_app/components/FeatureFlagsContext").FeatureFlags[K]} value - TODO: describe
+   * @returns {Promise<void>} TODO: describe
+   */
+  async (key, value) => {
     setFlags((prev) => ({ ...prev, [key]: value }));
     try {
       if (key === 'weather') {
@@ -72,6 +97,10 @@ export function FeatureFlagsProvider({ children }: { children: React.ReactNode }
   );
 }
 
+/**
+ * React component useFeatureFlags: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export function useFeatureFlags() {
   const ctx = useContext(FeatureFlagsContext);
   if (!ctx) throw new Error('useFeatureFlags must be used within FeatureFlagsProvider');

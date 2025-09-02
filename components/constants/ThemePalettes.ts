@@ -37,6 +37,12 @@ export interface ThemePaletteDefinition {
 }
 
 // Helper to build gradient convenience values
+/**
+ * Function grad: TODO describe purpose and usage.
+ * @param {any} a - TODO: describe
+ * @param {any} b - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function grad(a: string, b: string) { return [a, b]; }
 
 export const ThemePalettes: Record<ThemePaletteKey, ThemePaletteDefinition> = {

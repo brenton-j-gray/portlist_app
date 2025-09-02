@@ -5,6 +5,10 @@ import { useAppLock } from '../../components/AppLockContext';
 import { useTheme } from '../../components/ThemeContext';
 import { api2faDisable, api2faSetup, api2faStatus, api2faVerifySetup, apiChangeEmail, apiChangePassword } from '../../lib/api';
 
+/**
+ * React component SecurityScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function SecurityScreen() {
   const { themeColors } = useTheme();
   const styles = useMemo(() => StyleSheet.create({
@@ -34,6 +38,10 @@ export default function SecurityScreen() {
   );
 }
 
+/**
+ * React component EmailChangeForm: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function EmailChangeForm() {
   const { themeColors } = useTheme();
   const [email, setEmail] = useState('');
@@ -46,7 +54,11 @@ function EmailChangeForm() {
     btnText: { color: 'white', fontWeight: '700' },
   }), [themeColors]);
 
-  async function onSubmit() {
+  /**
+     * React component onSubmit: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSubmit() {
     if (!email || !password) return;
     setBusy(true);
     try {
@@ -74,6 +86,10 @@ function EmailChangeForm() {
   );
 }
 
+/**
+ * React component PasswordChangeForm: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function PasswordChangeForm() {
   const { themeColors } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -86,7 +102,11 @@ function PasswordChangeForm() {
     btnText: { color: 'white', fontWeight: '700' },
   }), [themeColors]);
 
-  async function onSubmit() {
+  /**
+     * React component onSubmit: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSubmit() {
     if (!currentPassword || !newPassword) return;
     setBusy(true);
     try {
@@ -114,6 +134,10 @@ function PasswordChangeForm() {
   );
 }
 
+/**
+ * React component TwoFASection: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function TwoFASection() {
   const { themeColors } = useTheme();
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -143,7 +167,11 @@ function TwoFASection() {
     })();
   }, []);
 
-  async function startSetup() {
+  /**
+     * React component startSetup: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function startSetup() {
     setBusy(true);
     try {
       const { otpauthUri: uri } = await api2faSetup();
@@ -155,7 +183,11 @@ function TwoFASection() {
     }
   }
 
-  async function verifySetup() {
+  /**
+     * React component verifySetup: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function verifySetup() {
     if (!code) return;
     setBusy(true);
     try {
@@ -171,7 +203,11 @@ function TwoFASection() {
     }
   }
 
-  async function disable2fa() {
+  /**
+     * React component disable2fa: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function disable2fa() {
     if (!password) return;
     setBusy(true);
     try {
@@ -233,6 +269,10 @@ function TwoFASection() {
   );
 }
 
+/**
+ * React component AppLockSection: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function AppLockSection() {
   const { themeColors } = useTheme();
   const { enabled, setEnabled, lockNow } = useAppLock();

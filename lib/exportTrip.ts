@@ -94,10 +94,20 @@ export async function exportAllTripsJSON(getTripsFn?: () => Promise<Trip[]>) {
 }
 
 // ================= PDF Export (default path) =================
+/**
+ * Function escapeHtml: TODO describe purpose and usage.
+ * @param {any} str - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function escapeHtml(str: string) {
   return str.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
+/**
+ * Function tripHtml: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function tripHtml(trip: Trip) {
   const days = trip.days || [] as any[];
   const ports = trip.ports || [];
@@ -128,6 +138,11 @@ function tripHtml(trip: Trip) {
   </body></html>`;
 }
 
+/**
+ * Function allTripsHtml: TODO describe purpose and usage.
+ * @param {any} trips - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function allTripsHtml(trips: Trip[]) {
   return `<!DOCTYPE html><html><head><meta charset='utf-8'><style>
   body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif; padding:18px; }
@@ -151,6 +166,11 @@ function allTripsHtml(trips: Trip[]) {
   </body></html>`;
 }
 
+/**
+ * Function exportTripPDF: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportTripPDF(trip: Trip) {
   try {
     if (Platform.OS === 'web') {
@@ -183,6 +203,11 @@ export async function exportTripPDF(trip: Trip) {
   }
 }
 
+/**
+ * Function exportAllTripsPDF: TODO describe purpose and usage.
+ * @param {any} getTripsFn - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportAllTripsPDF(getTripsFn?: () => Promise<Trip[]>) {
   try {
     let trips: Trip[] = [];
@@ -212,6 +237,11 @@ export async function exportAllTripsPDF(getTripsFn?: () => Promise<Trip[]>) {
 }
 
 // ================= TXT Export =================
+/**
+ * Function tripPlainText: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function tripPlainText(trip: Trip): string {
   const lines: string[] = [];
   lines.push(`# ${trip.title || 'Untitled Trip'}`);
@@ -231,6 +261,11 @@ function tripPlainText(trip: Trip): string {
   return lines.join('\n');
 }
 
+/**
+ * Function allTripsPlainText: TODO describe purpose and usage.
+ * @param {any} trips - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function allTripsPlainText(trips: Trip[]): string {
   const lines: string[] = [];
   lines.push(`# Trips Export (${trips.length})`);
@@ -251,6 +286,11 @@ function allTripsPlainText(trips: Trip[]): string {
   return lines.join('\n');
 }
 
+/**
+ * Function exportTripTXT: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportTripTXT(trip: Trip) {
   const content = tripPlainText(trip);
   const fileName = `trip_${trip.id}.txt`;
@@ -268,6 +308,11 @@ export async function exportTripTXT(trip: Trip) {
   } catch (e) { console.warn('TXT export failed', e); }
 }
 
+/**
+ * Function exportAllTripsTXT: TODO describe purpose and usage.
+ * @param {any} getTripsFn - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportAllTripsTXT(getTripsFn?: () => Promise<Trip[]>) {
   try {
     let trips: Trip[] = [];
@@ -291,11 +336,26 @@ export async function exportAllTripsTXT(getTripsFn?: () => Promise<Trip[]>) {
 // Creates a minimal DOCX (ZIP with [Content_Types].xml, _rels/.rels, word/document.xml)
 // For simplicity we build a flat paragraph sequence. Styling is minimal.
 
+/**
+ * Function xmlEscape: TODO describe purpose and usage.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function xmlEscape(s: string): string { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c] as string)); }
 
+/**
+ * Function tripDocxXml: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function tripDocxXml(trip: Trip): string {
   const paras: string[] = [];
-  const push = (text: string) => { paras.push(`<w:p><w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`); };
+  const push = /**
+   * Function push: TODO describe purpose and usage.
+   * @param {string} text - TODO: describe
+   * @returns {void} TODO: describe
+   */
+  (text: string) => { paras.push(`<w:p><w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`); };
   push(trip.title || 'Untitled Trip');
   push(`Ship: ${trip.ship || 'TBD'}`);
   push(`Dates: ${trip.startDate || '—'} -> ${trip.endDate || '—'}`);
@@ -313,6 +373,11 @@ function tripDocxXml(trip: Trip): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<w:document xmlns:wpc="http://schemas.microsoft.com/office/word/2010/wordprocessingCanvas" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wp14="http://schemas.microsoft.com/office/word/2010/wordprocessingDrawing" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:w10="urn:schemas-microsoft-com:office:word" xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:wpg="http://schemas.microsoft.com/office/word/2010/wordprocessingGroup" xmlns:wpi="http://schemas.microsoft.com/office/word/2010/wordprocessingInk" xmlns:wne="http://schemas.microsoft.com/office/word/2006/wordml" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" mc:Ignorable="w14 wp14">\n<w:body>\n${paras.join('\n')}\n<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`;
 }
 
+/**
+ * Function buildDocx: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function buildDocx(trip: Trip): { fileName: string; blobBuilder: () => Promise<Blob | Uint8Array>; } {
   const fileName = `trip_${trip.id}.docx`;
   // Minimal files
@@ -329,7 +394,12 @@ function buildDocx(trip: Trip): { fileName: string; blobBuilder: () => Promise<B
     blobBuilder: async () => {
       // Build simple ZIP (store) manually: implement minimal ZIP writer.
       // Simplicity: we implement uncompressed entries (method 0). DOCX readers accept this.
-      function crc32(buf: Uint8Array): number { const table = (()=>{ const t:number[]=[]; for (let i=0;i<256;i++){ let c=i; for (let k=0;k<8;k++) c = ((c & 1)? (0xEDB88320 ^ (c>>>1)) : (c>>>1)); t[i]=c>>>0;} return t; })(); let crc=-1; for (let i=0;i<buf.length;i++){ crc = (crc>>>8) ^ table[(crc ^ buf[i]) & 0xFF]; } return (~crc)>>>0; }
+      /**
+         * Function crc32: TODO describe purpose and usage.
+         * @param {Uint8Array} buf - TODO: describe
+         * @returns {number} TODO: describe
+         */
+        function crc32(buf: Uint8Array): number { const table = (()=>{ const t:number[]=[]; for (let i=0;i<256;i++){ let c=i; for (let k=0;k<8;k++) c = ((c & 1)? (0xEDB88320 ^ (c>>>1)) : (c>>>1)); t[i]=c>>>0;} return t; })(); let crc=-1; for (let i=0;i<buf.length;i++){ crc = (crc>>>8) ^ table[(crc ^ buf[i]) & 0xFF]; } return (~crc)>>>0; }
       const encoder = new TextEncoder();
       let offset = 0;
       const fileRecords: { header: Uint8Array; data: Uint8Array; descriptor: Uint8Array; name: string; crc:number; size:number; offset:number }[] = [];
@@ -395,11 +465,26 @@ function buildDocx(trip: Trip): { fileName: string; blobBuilder: () => Promise<B
 }
 
 // Multi-trip DOCX builder (concatenate trip sections)
+/**
+ * Function buildDocxMulti: TODO describe purpose and usage.
+ * @param {any} trips - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function buildDocxMulti(trips: Trip[]): { fileName: string; blobBuilder: () => Promise<Blob | Uint8Array>; } {
   const fileName = `trips_${Date.now()}.docx`;
-  function tripsDocumentXml(trips: Trip[]): string {
+  /**
+     * Function tripsDocumentXml: TODO describe purpose and usage.
+     * @param {import("D:/Code/portlist_app/types").Trip[]} trips - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    function tripsDocumentXml(trips: Trip[]): string {
     const paras: string[] = [];
-    const push = (text: string) => { paras.push(`<w:p><w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`); };
+    const push = /**
+     * Function push: TODO describe purpose and usage.
+     * @param {string} text - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    (text: string) => { paras.push(`<w:p><w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`); };
     push(`Trips Export (${trips.length})`);
     for (const t of trips) {
       push('');
@@ -431,7 +516,12 @@ function buildDocxMulti(trips: Trip[]): { fileName: string; blobBuilder: () => P
     fileName,
     blobBuilder: async () => {
       // reuse zip code by creating pseudo-trip and calling minimal writer (duplicated for clarity)
-      function crc32(buf: Uint8Array): number { const table = (()=>{ const t:number[]=[]; for (let i=0;i<256;i++){ let c=i; for (let k=0;k<8;k++) c = ((c & 1)? (0xEDB88320 ^ (c>>>1)) : (c>>>1)); t[i]=c>>>0;} return t; })(); let crc=-1; for (let i=0;i<buf.length;i++){ crc = (crc>>>8) ^ table[(crc ^ buf[i]) & 0xFF]; } return (~crc)>>>0; }
+      /**
+         * Function crc32: TODO describe purpose and usage.
+         * @param {Uint8Array} buf - TODO: describe
+         * @returns {number} TODO: describe
+         */
+        function crc32(buf: Uint8Array): number { const table = (()=>{ const t:number[]=[]; for (let i=0;i<256;i++){ let c=i; for (let k=0;k<8;k++) c = ((c & 1)? (0xEDB88320 ^ (c>>>1)) : (c>>>1)); t[i]=c>>>0;} return t; })(); let crc=-1; for (let i=0;i<buf.length;i++){ crc = (crc>>>8) ^ table[(crc ^ buf[i]) & 0xFF]; } return (~crc)>>>0; }
       const encoder = new TextEncoder();
       let offset = 0;
       const fileRecords: { header: Uint8Array; data: Uint8Array; name: string; crc:number; size:number; offset:number }[] = [];
@@ -451,6 +541,11 @@ function buildDocxMulti(trips: Trip[]): { fileName: string; blobBuilder: () => P
   };
 }
 
+/**
+ * Function exportTripDOCX: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportTripDOCX(trip: Trip) {
   try {
     const { fileName, blobBuilder } = buildDocx(trip);
@@ -464,7 +559,12 @@ export async function exportTripDOCX(trip: Trip) {
     const fileUri = FileSystem.cacheDirectory + fileName;
     // Convert Uint8Array to base64
     // Manual base64 (avoid Node Buffer)
-    function uint8ToBase64(u8: Uint8Array): string {
+    /**
+       * Function uint8ToBase64: TODO describe purpose and usage.
+       * @param {Uint8Array} u8 - TODO: describe
+       * @returns {string} TODO: describe
+       */
+      function uint8ToBase64(u8: Uint8Array): string {
       if (typeof btoa === 'function') {
         let bin=''; for (let i=0;i<u8.length;i++) bin += String.fromCharCode(u8[i]);
         return btoa(bin);
@@ -490,6 +590,12 @@ export async function exportTripDOCX(trip: Trip) {
 // Dispatcher helpers
 export type ExportFormat = 'pdf' | 'json' | 'txt' | 'docx';
 
+/**
+ * Function exportTrip: TODO describe purpose and usage.
+ * @param {any} trip - TODO: describe
+ * @param {any} format - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportTrip(trip: Trip, format: ExportFormat = 'pdf') {
   switch (format) {
     case 'pdf': return exportTripPDF(trip);
@@ -500,6 +606,12 @@ export async function exportTrip(trip: Trip, format: ExportFormat = 'pdf') {
   }
 }
 
+/**
+ * Function exportAllTrips: TODO describe purpose and usage.
+ * @param {any} format - TODO: describe
+ * @param {any} getTripsFn - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function exportAllTrips(format: ExportFormat = 'pdf', getTripsFn?: () => Promise<Trip[]>) {
   switch (format) {
     case 'pdf': return exportAllTripsPDF(getTripsFn);
@@ -517,7 +629,12 @@ export async function exportAllTrips(format: ExportFormat = 'pdf', getTripsFn?: 
         const FileSystem: any = await import('expo-file-system');
         const Sharing: any = await import('expo-sharing');
         const bytes = await blobBuilder();
-        function uint8ToBase64(u8: Uint8Array): string { let bin=''; for (let i=0;i<u8.length;i++) bin += String.fromCharCode(u8[i]); if (typeof btoa==='function') return btoa(bin); return ''; }
+        /**
+           * Function uint8ToBase64: TODO describe purpose and usage.
+           * @param {Uint8Array} u8 - TODO: describe
+           * @returns {string} TODO: describe
+           */
+          function uint8ToBase64(u8: Uint8Array): string { let bin=''; for (let i=0;i<u8.length;i++) bin += String.fromCharCode(u8[i]); if (typeof btoa==='function') return btoa(bin); return ''; }
         const b64 = uint8ToBase64(bytes as Uint8Array);
         const fileUri = FileSystem.cacheDirectory + fileName;
         await FileSystem.writeAsStringAsync(fileUri, b64, { encoding: FileSystem.EncodingType.Base64 });

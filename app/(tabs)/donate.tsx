@@ -20,11 +20,20 @@ type PaymentSheetParams = {
 const CURRENCIES = ['usd','eur'] as const;
 type Currency = typeof CURRENCIES[number];
 
+/**
+ * React component validateEmail: TODO describe purpose and where it’s used.
+ * @param {any} email - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function validateEmail(email: string) {
   if (!email) return true; // optional
   return /.+@.+\..+/.test(email);
 }
 
+/**
+ * React component DonateScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function DonateScreen() {
   const { themeColors } = useTheme();
   const { show, showProgress, update } = useToast();

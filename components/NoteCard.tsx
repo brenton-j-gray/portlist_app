@@ -18,6 +18,11 @@ export interface NoteCardProps {
   compact?: boolean; // condensed spacing / smaller thumb variant
 }
 
+/**
+ * React component NoteCard: TODO describe purpose and where it’s used.
+ * @param {any} { note, onPress, onLayout, thumbSize = 80, subtitleElement, style, testID, compact = false } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function NoteCard({ note, onPress, onLayout, thumbSize = 80, subtitleElement, style, testID, compact = false }: NoteCardProps) {
   const { themeColors } = useTheme();
   const { prefs } = usePreferences();
@@ -85,6 +90,11 @@ export function NoteCard({ note, onPress, onLayout, thumbSize = 80, subtitleElem
 export default NoteCard;
 
 // Lightweight skeleton (no shimmer) for loading Note content
+/**
+ * React component NoteCardSkeleton: TODO describe purpose and where it’s used.
+ * @param {any} { thumbSize = 80, lines = 2, showWeather = true, showLocation = true, style } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function NoteCardSkeleton({ thumbSize = 80, lines = 2, showWeather = true, showLocation = true, style }: { thumbSize?: number; lines?: number; showWeather?: boolean; showLocation?: boolean; style?: any }) {
   const { themeColors } = useTheme();
   const base = themeColors.card;

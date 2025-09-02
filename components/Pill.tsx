@@ -17,6 +17,11 @@ interface PillProps {
   iconColorOverride?: string; // allow custom icon tint (e.g., weather colors)
 }
 
+/**
+ * React component Pill: TODO describe purpose and where it’s used.
+ * @param {any} { variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle, iconColorOverride } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function Pill({ variant, iconName, children, size = 'sm', numberOfLines = 1, style, textStyle, iconColorOverride }: PillProps) {
   const { themeColors, colorScheme } = useTheme();
   // Map variant to a token color from theme

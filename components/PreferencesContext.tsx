@@ -32,6 +32,10 @@ interface PrefsContextValue {
 
 const PreferencesContext = createContext<PrefsContextValue | undefined>(undefined);
 
+/**
+ * loadAll reads persisted user preference keys from AsyncStorage and returns
+ * a fully-populated UserPreferences object with sensible defaults for any missing values.
+ */
 async function loadAll(): Promise<UserPreferences> {
   try {
     const keys = await AsyncStorage.multiGet([
@@ -60,6 +64,10 @@ async function loadAll(): Promise<UserPreferences> {
   }
 }
 
+/**
+ * PreferencesProvider loads and stores user preferences, exposing them via React context.
+ * Provides: `prefs`, `loading`, `reload()` to refresh from storage, and `setPref(key, value)` to persist changes.
+ */
 export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [prefs, setPrefs] = useState<UserPreferences>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
@@ -97,6 +105,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   );
 };
 
+/**
+ * usePreferences returns the PreferencesContext value with current `prefs`, loading state,
+ * and helpers to reload or update individual preferences.
+ */
 export function usePreferences(): PrefsContextValue {
   const ctx = useContext(PreferencesContext);
   if (!ctx) throw new Error('usePreferences must be used within PreferencesProvider');
@@ -105,6 +117,10 @@ export function usePreferences(): PrefsContextValue {
 
 // Formatting helpers (lightweight – can expand later)
 // Parse a YYYY-MM-DD string as a local date (no timezone shift) – mirrors existing screens' logic
+/**
+ * parseLocalYmd parses a YYYY-MM-DD string as a local Date (no timezone shift).
+ * Returns null for invalid inputs.
+ */
 function parseLocalYmd(dateStr: string): Date | null {
   const ymd = String(dateStr).slice(0, 10);
   if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
@@ -115,6 +131,10 @@ function parseLocalYmd(dateStr: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * formatDateWithPrefs formats an ISO date string using the user's locale/timeZone preferences.
+ * Provide `options` to override the default human-friendly pattern.
+ */
 export function formatDateWithPrefs(dateStr: string | undefined, prefs: UserPreferences, options?: Intl.DateTimeFormatOptions) {
   if (!dateStr) return '';
   const d = parseLocalYmd(dateStr);
@@ -134,6 +154,10 @@ export function formatDateWithPrefs(dateStr: string | undefined, prefs: UserPref
 }
 
 // Convenience helper to format a start/end date range honoring preferences
+/**
+ * formatDateRangeWithPrefs formats a start/end date range honoring the user's locale/timeZone preferences.
+ * If only one side is present, formats the single date.
+ */
 export function formatDateRangeWithPrefs(start: string | undefined, end: string | undefined, prefs: UserPreferences, options?: Intl.DateTimeFormatOptions) {
   if (start && end) {
     if (start === end) return formatDateWithPrefs(start, prefs, options);
@@ -145,6 +169,10 @@ export function formatDateRangeWithPrefs(start: string | undefined, end: string 
 }
 
 // Unit formatting helpers (lightweight conversions; can be expanded with localization later)
+/**
+ * formatTemperature formats a Celsius value using the user's unit preference (°C or °F).
+ * Use `opts.withUnit` to append the unit symbol and `opts.decimals` to control precision.
+ */
 export function formatTemperature(valueC: number | undefined, prefs: UserPreferences, opts?: { withUnit?: boolean; decimals?: number }) {
   if (valueC == null || isNaN(valueC)) return '';
   const decimals = opts?.decimals ?? 0;
@@ -155,6 +183,10 @@ export function formatTemperature(valueC: number | undefined, prefs: UserPrefere
   return valueC.toFixed(decimals) + (opts?.withUnit ? '°C' : '');
 }
 
+/**
+ * formatDistance formats a distance in kilometers using the user's preference (km or mi).
+ * Use `opts.withUnit` to append the unit and `opts.decimals` to control precision.
+ */
 export function formatDistance(km: number | undefined, prefs: UserPreferences, opts?: { withUnit?: boolean; decimals?: number }) {
   if (km == null || isNaN(km)) return '';
   const decimals = opts?.decimals ?? 1;
@@ -165,6 +197,10 @@ export function formatDistance(km: number | undefined, prefs: UserPreferences, o
   return km.toFixed(decimals) + (opts?.withUnit ? ' km' : '');
 }
 
+/**
+ * formatWind formats a wind speed in knots or mph based on the user's preference.
+ * Use `opts.withUnit` to append the unit and `opts.decimals` for precision.
+ */
 export function formatWind(speedKnots: number | undefined, prefs: UserPreferences, opts?: { withUnit?: boolean; decimals?: number }) {
   if (speedKnots == null || isNaN(speedKnots)) return '';
   const decimals = opts?.decimals ?? 0;

@@ -14,6 +14,11 @@ type AppLockContextType = {
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
 
+/**
+ * React component AppLockProvider: TODO describe purpose and where it’s used.
+ * @param {any} { children } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function AppLockProvider({ children }: { children: React.ReactNode }) {
   const { themeColors } = useTheme();
   const [enabled, setEnabledState] = useState(false);
@@ -92,6 +97,10 @@ export function AppLockProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * React component useAppLock: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export function useAppLock() {
   const ctx = useContext(AppLockContext);
   if (!ctx) throw new Error('useAppLock must be used within AppLockProvider');

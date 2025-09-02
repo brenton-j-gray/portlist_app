@@ -6,6 +6,10 @@ import { useTheme } from '../../components/ThemeContext';
 import { addTrip, uid } from '../../lib/storage';
 import { Trip } from '../../types';
 
+/**
+ * React component NewTripScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function NewTripScreen() {
   const { themeColors } = useTheme();
   const [title, setTitle] = useState('');
@@ -15,14 +19,24 @@ export default function NewTripScreen() {
   const [showStart, setShowStart] = useState(false);
   const [showEnd, setShowEnd] = useState(false);
 
-  function toISODate(d: Date) {
+  /**
+     * React component toISODate: TODO describe purpose and where it’s used.
+     * @param {Date} d - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    function toISODate(d: Date) {
     const y = d.getFullYear();
     const m = `${d.getMonth() + 1}`.padStart(2, '0');
     const day = `${d.getDate()}`.padStart(2, '0');
     return `${y}-${m}-${day}`;
   }
 
-  function parseISODate(s: string | undefined): Date {
+  /**
+     * React component parseISODate: TODO describe purpose and where it’s used.
+     * @param {string | undefined} s - TODO: describe
+     * @returns {Date} TODO: describe
+     */
+    function parseISODate(s: string | undefined): Date {
     if (!s) return new Date();
     const [y, m, d] = s.split('-').map((p) => parseInt(p, 10));
     if (!y || !m || !d) return new Date();
@@ -30,7 +44,13 @@ export default function NewTripScreen() {
     return new Date(y, m - 1, d);
   }
 
-  function onChangeStart(_event: DateTimePickerEvent, date?: Date) {
+  /**
+     * React component onChangeStart: TODO describe purpose and where it’s used.
+     * @param {any} _event - TODO: describe
+     * @param {Date | undefined} date - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function onChangeStart(_event: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowStart(false);
     if (!date) return;
     const v = toISODate(date);
@@ -39,14 +59,24 @@ export default function NewTripScreen() {
   if (endDate && parseISODate(endDate) < date) setEndDate('');
   }
 
-  function onChangeEnd(_event: DateTimePickerEvent, date?: Date) {
+  /**
+     * React component onChangeEnd: TODO describe purpose and where it’s used.
+     * @param {any} _event - TODO: describe
+     * @param {Date | undefined} date - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function onChangeEnd(_event: DateTimePickerEvent, date?: Date) {
     if (Platform.OS === 'android') setShowEnd(false);
     if (!date) return;
     const v = toISODate(date);
     setEndDate(v);
   }
 
-  async function onSave() {
+  /**
+     * React component onSave: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSave() {
     if (!title.trim()) return;
     // Validate end >= start when both provided
     if (startDate && endDate) {

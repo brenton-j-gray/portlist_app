@@ -3,6 +3,10 @@ import type { Trip } from '../types';
 
 const PHOTOS_DIR = (FileSystem.documentDirectory || '') + 'photos';
 
+/**
+ * Function ensurePhotosDir: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 async function ensurePhotosDir() {
   try {
     if (!FileSystem.documentDirectory) return;
@@ -13,11 +17,21 @@ async function ensurePhotosDir() {
   } catch { /* ignore */ }
 }
 
+/**
+ * Function randomName: TODO describe purpose and usage.
+ * @param {any} ext - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function randomName(ext: string) {
   const safe = ext.replace(/[^a-z0-9]/gi, '').slice(0, 6) || 'jpg';
   return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}.${safe}`;
 }
 
+/**
+ * Function guessExtFromDataUri: TODO describe purpose and usage.
+ * @param {any} data - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function guessExtFromDataUri(data: string) {
   const match = /^data:(image\/[^;]+);base64,/i.exec(data);
   if (match) {
@@ -29,6 +43,11 @@ function guessExtFromDataUri(data: string) {
 }
 
 
+/**
+ * Function isEphemeralOrExternal: TODO describe purpose and usage.
+ * @param {any} uri - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function isEphemeralOrExternal(uri: string): boolean {
   if (!uri) return false;
   const cache = FileSystem.cacheDirectory ?? '';
@@ -38,6 +57,11 @@ function isEphemeralOrExternal(uri: string): boolean {
   return false;
 }
 
+/**
+ * Function persistPhotoUris: TODO describe purpose and usage.
+ * @param {any} photos - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function persistPhotoUris(photos: { uri: string; caption?: string }[]): Promise<{ uri: string; caption?: string }[]> {
   if (!photos?.length) return photos;
   await ensurePhotosDir();
@@ -70,6 +94,11 @@ export async function persistPhotoUris(photos: { uri: string; caption?: string }
   return out;
 }
 
+/**
+ * Function normalizeTripsMedia: TODO describe purpose and usage.
+ * @param {any} trips - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function normalizeTripsMedia(trips: Trip[]): Promise<Trip[]> {
   const out: Trip[] = [];
   for (const t of trips) {
@@ -90,6 +119,11 @@ export async function normalizeTripsMedia(trips: Trip[]): Promise<Trip[]> {
 
 // Save a newly captured local file to the user's Photos library and return the library URI.
 // On failure or when not supported, return the original URI.
+/**
+ * Function saveCameraPhotoToLibrary: TODO describe purpose and usage.
+ * @param {any} localUri - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function saveCameraPhotoToLibrary(localUri: string): Promise<string> {
   try {
     const MediaLibrary = await import('expo-media-library');

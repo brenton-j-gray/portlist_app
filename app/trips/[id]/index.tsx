@@ -15,9 +15,24 @@ import { getTripById } from '../../../lib/storage';
 import * as Widget from '../../../lib/widget';
 import { Note, Trip } from '../../../types';
 
+/**
+ * React component parseLocalFromString: TODO describe purpose and where it’s used.
+ * @param {any} dateStr - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function parseLocalFromString(dateStr: string | undefined): Date | null { if (!dateStr) return null; const ymd=String(dateStr).slice(0,10); if(/^\d{4}-\d{2}-\d{2}$/.test(ymd)){ const [y,m,d]=ymd.split('-').map(Number); return new Date(y,(m||1)-1,d||1);} const d=new Date(dateStr); return isNaN(d.getTime())?null:d; }
+/**
+ * React component computeDurationDays: TODO describe purpose and where it’s used.
+ * @param {any} start - TODO: describe
+ * @param {any} end - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function computeDurationDays(start?: string, end?: string): number | null { if(!start||!end) return null; const s=parseLocalFromString(start); const e=parseLocalFromString(end); if(!s||!e) return null; const MS=86400000; const days=Math.floor((e.getTime()-s.getTime())/MS)+1; return days>0?days:null; }
 
+/**
+ * React component TripDetail: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function TripDetail(){
   const { themeColors } = useTheme();
   const { prefs, setPref } = usePreferences();
@@ -125,6 +140,9 @@ export default function TripDetail(){
           <Text style={{marginLeft:6,fontSize:12,fontWeight:'600',color:themeColors.text}}>{sortDesc ? 'Newest' : 'Oldest'}</Text>
         </Pressable>
       </View>
+      <View style={{marginHorizontal:16, marginTop:-4, marginBottom:6, alignItems:'center'}}>
+        <Text style={{ color: themeColors.textSecondary, fontSize: 11 }}>Swipe right to edit • left to delete</Text>
+      </View>
     {trip.days.length===0 ? <Text style={styles.emptyText}>No notes yet. Add your first one.</Text> : (
         <FlatList
       data={sortedDays}
@@ -189,4 +207,9 @@ export default function TripDetail(){
   );
 }
 
+/**
+ * React component DayItem: TODO describe purpose and where it’s used.
+ * @param {any} {item,tripId,onLayout} - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function DayItem({item,tripId,onLayout}:{item:Note;tripId:string;onLayout?:(e:any)=>void}){ return <NoteCard note={item} onLayout={onLayout} onPress={()=>router.push({pathname:'/(tabs)/trips/[id]/note/[noteId]' as any, params:{id:tripId,noteId:item.id}} as any)} thumbSize={64} compact />; }

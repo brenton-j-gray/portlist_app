@@ -10,6 +10,10 @@ import { usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
 import { apiGetProfile, apiSaveProfile } from '../../lib/api';
 
+/**
+ * React component ProfileScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function ProfileScreen() {
   const { themeColors } = useTheme();
   const { refreshProfile, userAvatar, setUserAvatar } = useAuth();
@@ -120,7 +124,11 @@ export default function ProfileScreen() {
   chipActive: { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' },
   }), [themeColors, frameSize]);
 
-  async function onSave() {
+  /**
+     * React component onSave: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSave() {
     try {
       setBusy(true);
       // Build fullName from first + last; send explicit empties to clear
@@ -154,7 +162,11 @@ export default function ProfileScreen() {
     }
   }
 
-  async function pickImage() {
+  /**
+     * React component pickImage: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function pickImage() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert('Permission needed', 'Allow photo access to set your profile picture.'); return; }
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1, allowsEditing: false });
@@ -170,7 +182,11 @@ export default function ProfileScreen() {
     setPickerVisible(true);
   }
 
-  async function confirmCrop() {
+  /**
+     * React component confirmCrop: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function confirmCrop() {
     if (!picked) return;
     try {
       const canvas = Math.round(frameSize * 1.6);

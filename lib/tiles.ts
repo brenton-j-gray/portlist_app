@@ -7,6 +7,10 @@ export type TileConfig = {
   styleURL?: string;
 };
 
+/**
+ * Function getTileConfig: TODO describe purpose and usage.
+ * @returns {any} TODO: describe
+ */
 export function getTileConfig(): TileConfig {
   const tpl = process.env.EXPO_PUBLIC_TILE_URL_TEMPLATE;
   const mapTilerKey = process.env.EXPO_PUBLIC_MAPTILER_KEY;
@@ -45,10 +49,16 @@ export function getTileConfig(): TileConfig {
     provider: 'OpenStreetMap',
     attribution: '© OpenStreetMap contributors',
     creditLink: 'https://www.openstreetmap.org/copyright',
-    styleURL: styleOverride || undefined,
+    // Provide a default public style for MapLibre so it always has a valid style JSON
+    styleURL: styleOverride || 'https://demotiles.maplibre.org/style.json',
   };
 }
 
+/**
+ * Function inferProviderName: TODO describe purpose and usage.
+ * @param {any} url - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function inferProviderName(url: string): string {
   try {
     const u = new URL(url.replace('{z}', '0').replace('{x}', '0').replace('{y}', '0'));

@@ -12,6 +12,10 @@ import { Note, Trip } from '../../../../../types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+/**
+ * React component ViewNoteScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function ViewNoteScreen() {
 	const { id, noteId } = useLocalSearchParams<{ id: string; noteId: string }>();
 	const { themeColors } = useTheme();
@@ -138,10 +142,18 @@ export default function ViewNoteScreen() {
 						{!!(log.locationName || (log as any).location) && (
 							<Pill variant="success" size="md" iconName="location-outline">
 								{(() => {
-									const label = log.locationName || (log as any).location || '';
-									if (/.*,\s*[A-Z]{2}$/i.test(label)) return label;
-									const parts = label.split(',').map((p: string) => p.trim()).filter(Boolean);
-									if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
+									let label: string = typeof log.locationName === 'string' ? log.locationName : '';
+									if (!label && (log as any).location && typeof (log as any).location === 'object') {
+										const loc = (log as any).location as { lat?: number; lng?: number };
+										if (typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+											label = `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+										}
+									}
+									if (label && /.*,\s*[A-Z]{2}$/i.test(label)) return label;
+									if (label && label.includes(',')) {
+										const parts = label.split(',').map((p: string) => p.trim()).filter(Boolean);
+										if (parts.length >= 2) return `${parts[0]}, ${parts[parts.length - 1]}`;
+									}
 									return label || 'Location added';
 								})()}
 							</Pill>

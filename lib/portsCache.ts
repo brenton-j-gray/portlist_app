@@ -1,8 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PORTS_CACHE_CONFIG, PortEntry, normalize } from './ports';
 
+/** Class PortsCache: TODO describe responsibility, props/state (if React), and main collaborators. */
 export class PortsCache {
-  static async load(): Promise<PortEntry[]> {
+  /**
+     * Method PortsCache.load: TODO describe behavior and when it's called.
+     * @returns {Promise<import("D:/Code/portlist_app/lib/ports").PortEntry[]>} TODO: describe
+     */
+    static async load(): Promise<PortEntry[]> {
     try {
       const raw = await AsyncStorage.getItem(PORTS_CACHE_CONFIG.CACHE_KEY);
       if (!raw) return [];
@@ -20,7 +25,12 @@ export class PortsCache {
     }
   }
 
-  static async save(entries: PortEntry[]): Promise<void> {
+  /**
+     * Method PortsCache.save: TODO describe behavior and when it's called.
+     * @param {import("D:/Code/portlist_app/lib/ports").PortEntry[]} entries - TODO: describe
+     * @returns {Promise<void>} TODO: describe
+     */
+    static async save(entries: PortEntry[]): Promise<void> {
     try {
       const now = Date.now();
       // Ensure savedAt/lastAccessed exist
@@ -38,13 +48,22 @@ export class PortsCache {
     } catch {}
   }
 
-  static async clear(): Promise<void> {
+  /**
+     * Method PortsCache.clear: TODO describe behavior and when it's called.
+     * @returns {Promise<void>} TODO: describe
+     */
+    static async clear(): Promise<void> {
     try {
       await AsyncStorage.removeItem(PORTS_CACHE_CONFIG.CACHE_KEY);
     } catch {}
   }
 
-  static async upsert(entry: PortEntry): Promise<void> {
+  /**
+     * Method PortsCache.upsert: TODO describe behavior and when it's called.
+     * @param {import("D:/Code/portlist_app/lib/ports").PortEntry} entry - TODO: describe
+     * @returns {Promise<void>} TODO: describe
+     */
+    static async upsert(entry: PortEntry): Promise<void> {
     const list = await PortsCache.load();
     const now = Date.now();
     const idx = list.findIndex(p => normalize(p.name) === normalize(entry.name));
@@ -58,7 +77,12 @@ export class PortsCache {
     await PortsCache.save(list);
   }
 
-  static async removeByName(name: string): Promise<boolean> {
+  /**
+     * Method PortsCache.removeByName: TODO describe behavior and when it's called.
+     * @param {string} name - TODO: describe
+     * @returns {Promise<boolean>} TODO: describe
+     */
+    static async removeByName(name: string): Promise<boolean> {
     try {
       const key = normalize(name);
       const list = await PortsCache.load();

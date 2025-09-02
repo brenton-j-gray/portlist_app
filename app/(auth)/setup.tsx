@@ -4,6 +4,10 @@ import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-nativ
 import { useTheme } from '../../components/ThemeContext';
 import { apiSaveProfile } from '../../lib/api';
 
+/**
+ * React component SetupScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function SetupScreen() {
   const { themeColors } = useTheme();
   const [fullName, setFullName] = useState('');
@@ -22,7 +26,11 @@ export default function SetupScreen() {
   secondaryText: { color: themeColors.primaryDark, fontWeight: '700' },
   }), [themeColors]);
 
-  async function onSave() {
+  /**
+     * React component onSave: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSave() {
     try {
       setBusy(true);
       await apiSaveProfile({ fullName: fullName.trim() || undefined, username: username.trim() || undefined, bio: bio.trim() || undefined });

@@ -1,25 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View, Linking } from 'react-native';
-import Constants from 'expo-constants';
-import { Platform, UIManager } from 'react-native';
+import { FlatList, Linking, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import type { Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../components/PreferencesContext';
 import { useTheme } from '../../components/ThemeContext';
 import { useToast } from '../../components/ToastContext';
-import { clearPortsCache, fuzzyMatch, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort } from '../../lib/ports';
+import { clearPortsCache, fuzzyMatch, PortEntry, resolvePortByName, searchPortsOnline, upsertCachedPort, searchPorts } from '../../lib/ports';
 import { PortsCache } from '../../lib/portsCache';
-import { getTrips, uid, upsertTrip } from '../../lib/storage';
-import type { Trip } from '../../types';
+import { getTrips, upsertTrip } from '../../lib/storage';
+import { shortLocationLabel } from '../../lib/location';
 import { getTileConfig } from '../../lib/tiles';
+import type { Trip } from '../../types';
 
+/**
+ * MapScreen renders the trips map with planned ports and note locations.
+ * - iOS: react-native-maps with OSM tiles; Android: MapLibre if available.
+ * - Shows clustered note markers, planned port markers, and great‑circle path lines between ports.
+ * - Supports long‑press add: drop a point and append it to a selected trip.
+ */
 export default function MapScreen() {
   const { themeColors, colorScheme } = useTheme();
-  const { prefs, setPref } = usePreferences();
+  const { prefs } = usePreferences();
   const insets = useSafeAreaInsets();
   // maps feature flag removed; map should always be enabled
   const routeColor = useMemo(() => (colorScheme === 'dark' ? themeColors.highlight : themeColors.accent), [colorScheme, themeColors]);
@@ -54,12 +60,32 @@ export default function MapScreen() {
     })();
   }, []);
 
+  // Reduce noisy MapLibre native logs in dev (filter out transient 'Canceled' tile requests)
+  useEffect(() => {
+    try {
+      if (Platform.OS === 'android' && MapLibre?.Logger) {
+        // MapLibre RN expects a string level like 'error' | 'warning' | 'info'
+        MapLibre.Logger.setLogLevel?.('error');
+        MapLibre.Logger.setLogCallback?.((log: any) => {
+          const msg = String(log?.message || '');
+          const tag = String(log?.tag || '');
+          if (tag.includes('Mbgl-HttpRequest') && /Canceled/i.test(msg)) {
+            return true; // swallow
+          }
+          return false; // let others through
+        });
+      }
+    } catch {}
+  }, [MapLibre]);
+
   // Dynamically load map components only when available (dev client/standalone with AIRMap)
   const [MapComponents, setMapComponents] = useState<null | { MapView: any; Marker: any; Polyline: any; UrlTile?: any; Callout: any }>(null);
   useEffect(() => {
     (async () => {
       try {
         const inExpoGo = Constants.appOwnership === 'expo';
+        // Do not load react-native-maps on Android to avoid Google SDK/API key requirements
+        if (Platform.OS === 'android') { setMapComponents(null); return; }
         const hasAirMap = Platform.OS !== 'web' && !!UIManager.getViewManagerConfig?.('AIRMap');
         if (!inExpoGo && hasAirMap) {
           const mod = await import('react-native-maps');
@@ -108,10 +134,29 @@ export default function MapScreen() {
   useEffect(() => { (async () => { try { const cat = await AsyncStorage.getItem('map_filter_category_v1'); if (cat === 'inprogress' || cat === 'upcoming' || cat === 'completed' || cat === 'all') setCategory(cat); } catch {} })(); }, []);
   useEffect(() => { (async () => { try { await AsyncStorage.setItem('map_filter_category_v1', category); } catch {} })(); }, [category]);
 
-  function parseLocalYmd(s: string): Date { const [y, m, d] = s.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); }
-  function startOfToday(): Date { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
-  function isTripCompleted(t: Trip) { if (t.completed) return true; if (!t.endDate) return false; return parseLocalYmd(t.endDate).getTime() < startOfToday().getTime(); }
-  function isTripInProgress(t: Trip) { if (t.completed || !t.startDate) return false; const today = startOfToday().getTime(); const startTs = parseLocalYmd(t.startDate).getTime(); const endTs = t.endDate ? parseLocalYmd(t.endDate).getTime() : undefined; if (today < startTs) return false; if (typeof endTs === 'number' && today > endTs) return false; return true; }
+  /**
+     * React component parseLocalYmd: TODO describe purpose and where it’s used.
+     * @param {string} s - TODO: describe
+     * @returns {Date} TODO: describe
+     */
+    function parseLocalYmd(s: string): Date { const [y, m, d] = s.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1); }
+  /**
+     * React component startOfToday: TODO describe purpose and where it’s used.
+     * @returns {Date} TODO: describe
+     */
+    function startOfToday(): Date { const now = new Date(); return new Date(now.getFullYear(), now.getMonth(), now.getDate()); }
+  /**
+     * React component isTripCompleted: TODO describe purpose and where it’s used.
+     * @param {import("D:/Code/portlist_app/types").Trip} t - TODO: describe
+     * @returns {boolean} TODO: describe
+     */
+    function isTripCompleted(t: Trip) { if (t.completed) return true; if (!t.endDate) return false; return parseLocalYmd(t.endDate).getTime() < startOfToday().getTime(); }
+  /**
+     * React component isTripInProgress: TODO describe purpose and where it’s used.
+     * @param {import("D:/Code/portlist_app/types").Trip} t - TODO: describe
+     * @returns {boolean} TODO: describe
+     */
+    function isTripInProgress(t: Trip) { if (t.completed || !t.startDate) return false; const today = startOfToday().getTime(); const startTs = parseLocalYmd(t.startDate).getTime(); const endTs = t.endDate ? parseLocalYmd(t.endDate).getTime() : undefined; if (today < startTs) return false; if (typeof endTs === 'number' && today > endTs) return false; return true; }
 
   // map always enabled
 
@@ -138,7 +183,12 @@ export default function MapScreen() {
 
   type MarkerPoint = typeof markers[number];
   type Cluster = { key: string; lat: number; lng: number; count: number; children: MarkerPoint[] };
-  function computeThresholds(r: Region) { const d = r.latitudeDelta; let div = 22; if (d > 60) div = 10; else if (d > 30) div = 14; else if (d > 15) div = 18; else if (d > 8) div = 22; else if (d > 4) div = 26; else div = 32; const latThresh = Math.max(d / div, 0.005); const rad = (r.latitude * Math.PI) / 180; const lngScale = Math.max(Math.cos(rad), 0.2); const lngThresh = Math.max(r.longitudeDelta / div * lngScale, 0.005); return { latThresh, lngThresh }; }
+  /**
+     * React component computeThresholds: TODO describe purpose and where it’s used.
+     * @param {any} r - TODO: describe
+     * @returns {{ latThresh: number; lngThresh: number; }} TODO: describe
+     */
+    function computeThresholds(r: Region) { const d = r.latitudeDelta; let div = 22; if (d > 60) div = 10; else if (d > 30) div = 14; else if (d > 15) div = 18; else if (d > 8) div = 22; else if (d > 4) div = 26; else div = 32; const latThresh = Math.max(d / div, 0.005); const rad = (r.latitude * Math.PI) / 180; const lngScale = Math.max(Math.cos(rad), 0.2); const lngThresh = Math.max(r.longitudeDelta / div * lngScale, 0.005); return { latThresh, lngThresh }; }
 
   const clusters = useMemo(() => {
     if (!region) return markers.map(m => ({ type: 'point' as const, point: m }));
@@ -154,7 +204,12 @@ export default function MapScreen() {
     return out;
   }, [markers, region]);
 
-  const zoomIntoCluster = (c: Cluster) => {
+  const zoomIntoCluster = /**
+   * React component zoomIntoCluster: TODO describe purpose and where it’s used.
+   * @param {Cluster} c - TODO: describe
+   * @returns {void} TODO: describe
+   */
+  (c: Cluster) => {
     if (!mapRef.current) return;
     const minLat = Math.min(...c.children.map(p => p.lat));
     const maxLat = Math.max(...c.children.map(p => p.lat));
@@ -199,27 +254,86 @@ export default function MapScreen() {
     // ensure portsFingerprint is treated as a used dependency so the memo invalidates when it changes
     void portsFingerprint;
     const ports: PortMarker[] = []; const paths: TripPath[] = []; const arrows: ArrowMarker[] = []; const unresolved: { port: string; tripId: string }[] = [];
-    const norm = (s?: string | null) => (s || '').trim().toLowerCase();
-    const toRad = (d: number) => d * Math.PI / 180; const toDeg = (r: number) => r * 180 / Math.PI;
-    const bearing = (lat1: number, lon1: number, lat2: number, lon2: number) => { const φ1 = toRad(lat1); const φ2 = toRad(lat2); const Δλ = toRad(lon2 - lon1); const y = Math.sin(Δλ) * Math.cos(φ2); const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ); return (toDeg(Math.atan2(y, x)) + 360) % 360; };
-    const havDistanceKm = (lat1: number, lon1: number, lat2: number, lon2: number) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const φ1 = toRad(lat1); const φ2 = toRad(lat2); const a = Math.sin(dLat/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dLon/2)**2; const c = 2 * Math.asin(Math.min(1, Math.sqrt(a))); return R * c; };
-    const interpolateGC = (lat1: number, lon1: number, lat2: number, lon2: number, f: number) => { const φ1 = toRad(lat1), λ1 = toRad(lon1), φ2 = toRad(lat2), λ2 = toRad(lon2); const Δ = 2 * Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2)); if (Δ === 0) return { lat: lat1, lng: lon1 }; const A = Math.sin((1 - f) * Δ) / Math.sin(Δ); const B = Math.sin(f * Δ) / Math.sin(Δ); const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2); const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2); const z = A * Math.sin(φ1) + B * Math.sin(φ2); const φi = Math.atan2(z, Math.sqrt(x * x + y * y)); const λi = Math.atan2(y, x); return { lat: toDeg(φi), lng: ((toDeg(λi) + 540) % 360) - 180 }; };
+    const norm = /**
+     * React component norm: TODO describe purpose and where it’s used.
+     * @param {string | null | undefined} s - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    (s?: string | null) => (s || '').trim().toLowerCase();
+    const toRad = /**
+     * React component toRad: TODO describe purpose and where it’s used.
+     * @param {number} d - TODO: describe
+     * @returns {number} TODO: describe
+     */
+    (d: number) => d * Math.PI / 180; const toDeg = /**
+     * React component toDeg: TODO describe purpose and where it’s used.
+     * @param {number} r - TODO: describe
+     * @returns {number} TODO: describe
+     */
+    (r: number) => r * 180 / Math.PI;
+    const bearing = /**
+     * React component bearing: TODO describe purpose and where it’s used.
+     * @param {number} lat1 - TODO: describe
+     * @param {number} lon1 - TODO: describe
+     * @param {number} lat2 - TODO: describe
+     * @param {number} lon2 - TODO: describe
+     * @returns {number} TODO: describe
+     */
+    (lat1: number, lon1: number, lat2: number, lon2: number) => { const φ1 = toRad(lat1); const φ2 = toRad(lat2); const Δλ = toRad(lon2 - lon1); const y = Math.sin(Δλ) * Math.cos(φ2); const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ); return (toDeg(Math.atan2(y, x)) + 360) % 360; };
+    const havDistanceKm = /**
+     * React component havDistanceKm: TODO describe purpose and where it’s used.
+     * @param {number} lat1 - TODO: describe
+     * @param {number} lon1 - TODO: describe
+     * @param {number} lat2 - TODO: describe
+     * @param {number} lon2 - TODO: describe
+     * @returns {number} TODO: describe
+     */
+    (lat1: number, lon1: number, lat2: number, lon2: number) => { const R = 6371; const dLat = toRad(lat2 - lat1); const dLon = toRad(lon2 - lon1); const φ1 = toRad(lat1); const φ2 = toRad(lat2); const a = Math.sin(dLat/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dLon/2)**2; const c = 2 * Math.asin(Math.min(1, Math.sqrt(a))); return R * c; };
+    const interpolateGC = /**
+     * React component interpolateGC: TODO describe purpose and where it’s used.
+     * @param {number} lat1 - TODO: describe
+     * @param {number} lon1 - TODO: describe
+     * @param {number} lat2 - TODO: describe
+     * @param {number} lon2 - TODO: describe
+     * @param {number} f - TODO: describe
+     * @returns {{ lat: number; lng: number; }} TODO: describe
+     */
+    (lat1: number, lon1: number, lat2: number, lon2: number, f: number) => { const φ1 = toRad(lat1), λ1 = toRad(lon1), φ2 = toRad(lat2), λ2 = toRad(lon2); const Δ = 2 * Math.asin(Math.sqrt(Math.sin((φ2-φ1)/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin((λ2-λ1)/2)**2)); if (Δ === 0) return { lat: lat1, lng: lon1 }; const A = Math.sin((1 - f) * Δ) / Math.sin(Δ); const B = Math.sin(f * Δ) / Math.sin(Δ); const x = A * Math.cos(φ1) * Math.cos(λ1) + B * Math.cos(φ2) * Math.cos(λ2); const y = A * Math.cos(φ1) * Math.sin(λ1) + B * Math.cos(φ2) * Math.sin(λ2); const z = A * Math.sin(φ1) + B * Math.sin(φ2); const φi = Math.atan2(z, Math.sqrt(x * x + y * y)); const λi = Math.atan2(y, x); return { lat: toDeg(φi), lng: ((toDeg(λi) + 540) % 360) - 180 }; };
 
     for (const trip of filteredTrips) {
       const list = Array.isArray(trip.ports) ? trip.ports : [];
       const pathCoords: { latitude: number; longitude: number }[] = []; const segmentEndpoints: { latitude: number; longitude: number }[] = [];
       list.forEach((p, idx) => {
         const pn = norm(p); const primary = norm(p.split(',')[0] || p); if (!pn) return;
-        const hit = trip.days.find(d => { if (!d.location) return false; const ln = norm(d.locationName); return (ln.includes(pn) || pn.includes(ln) || (primary ? (ln.includes(primary) || primary.includes(ln)) : false)); });
+        // 0) Direct lat,lng in the port string (e.g., "58.3019, -134.4197")
+        const coordMatch = /(-?\d{1,3}(?:\.\d+)?)[\s,]+(-?\d{1,3}(?:\.\d+)?)/.exec(p);
+        if (coordMatch) {
+          const lat = parseFloat(coordMatch[1]);
+          const lng = parseFloat(coordMatch[2]);
+          if (isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+            ports.push({ key: `port_${trip.id}_${idx}`, lat, lng, title: p, tripId: trip.id });
+            segmentEndpoints.push({ latitude: lat, longitude: lng });
+            return;
+          }
+        }
+        // 1) Prefer explicit trip day locations, using fuzzy match between the port label and locationName
+        const hit = trip.days.find(d => {
+          if (!d.location) return false; const ln = (d.locationName || '').trim();
+          if (!ln) return false;
+          const lnNorm = norm(ln);
+          if (lnNorm.includes(pn) || pn.includes(lnNorm) || (primary ? (lnNorm.includes(primary) || primary.includes(lnNorm)) : false)) return true;
+          try { return fuzzyMatch(ln, p, 0.6); } catch { return false; }
+        });
         if (hit && hit.location && typeof hit.location.lat === 'number' && typeof hit.location.lng === 'number') {
           // Use explicit note location
           ports.push({ key: `port_${trip.id}_${idx}`, lat: hit.location.lat, lng: hit.location.lng, title: p, tripId: trip.id });
           segmentEndpoints.push({ latitude: hit.location.lat, longitude: hit.location.lng });
           console.debug && console.debug(`[map] trip ${trip.id} port[${idx}] '${p}' -> using trip day location ${hit.location.lat},${hit.location.lng}`);
         } else {
-          const resolved = resolvePortByName(p, portCache);
+          // 2) Try local resolution using curated + cache + master datasets
+          const resolved = (searchPorts(p, portCache, 1, undefined, true, true) || [])[0] || resolvePortByName(p, portCache);
           if (resolved) {
-            ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: resolved.name, tripId: trip.id });
+            ports.push({ key: `port_${trip.id}_${idx}`, lat: resolved.lat, lng: resolved.lng, title: p, tripId: trip.id });
             segmentEndpoints.push({ latitude: resolved.lat, longitude: resolved.lng });
             console.debug && console.debug(`[map] trip ${trip.id} port[${idx}] '${p}' -> resolved '${resolved.name}' @ ${resolved.lat},${resolved.lng} (source=${resolved.source || 'unknown'})`);
           } else {
@@ -292,7 +406,12 @@ export default function MapScreen() {
     })();
   }, [unresolvedPorts, pendingPorts, normalizeName]);
 
-  const ClusterBubble = ({ count }: { count: number }) => (
+  const ClusterBubble = /**
+   * React component ClusterBubble: TODO describe purpose and where it’s used.
+   * @param {{ count: number; }} { count } - TODO: describe
+   * @returns {React.JSX.Element} TODO: describe
+   */
+  ({ count }: { count: number }) => (
   <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: (themeColors as any).primaryDark || themeColors.primary, borderWidth: 2, borderColor: themeColors.background, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
       <Text style={{ color: 'white', fontWeight: '700', fontSize: 13 }}>{count}</Text>
     </View>
@@ -325,154 +444,155 @@ export default function MapScreen() {
     }
   }, [MapLibre]);
 
+  /**
+     * React component handleLongPressAtCoord: TODO describe purpose and where it’s used.
+     * @param {{ latitude: number; longitude: number; }} coord - TODO: describe
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function handleLongPressAtCoord(coord: { latitude: number; longitude: number }) {
+    setPendingCoord(coord);
+    setPendingPlaceName(null);
+    setAddLocationModalVisible(true);
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (!perm.granted && perm.canAskAgain) await Location.requestForegroundPermissionsAsync();
+      const res = await Location.reverseGeocodeAsync({ latitude: coord.latitude, longitude: coord.longitude });
+      if (res && res.length) {
+        const r: any = res[0];
+        const zoomedIn = typeof region?.latitudeDelta === 'number' && (region as any).latitudeDelta < 0.05;
+        const coarse = shortLocationLabel(r, coord.latitude, coord.longitude);
+        const name = (r.name || r.street || '').trim();
+        const city = (r.city || r.district || r.subregion || '').trim();
+        const st = (r.region || '').trim();
+        const specific = zoomedIn && name ? [name, city || undefined, st || undefined].filter(Boolean).join(', ') : '';
+        setPendingPlaceName((specific || coarse) || null);
+      } else {
+        setPendingPlaceName(`${coord.latitude.toFixed(4)}, ${coord.longitude.toFixed(4)}`);
+      }
+    } catch {
+      setPendingPlaceName(`${coord.latitude.toFixed(4)}, ${coord.longitude.toFixed(4)}`);
+    }
+  }
+
+  /**
+     * React component renderMap: TODO describe purpose and where it’s used.
+     * @returns {React.JSX.Element} TODO: describe
+     */
+    function renderMap() {
+    if (Platform.OS === 'android' && MapLibre) {
+      return (
+        <MapLibre.MapView style={styles.map} styleURL={tile.styleURL || undefined}
+          onLongPress={(e: any) => { try { const coords = (e as any)?.geometry?.coordinates || (e as any)?.coordinates; if (coords && coords.length >= 2) handleLongPressAtCoord({ latitude: coords[1], longitude: coords[0] }); } catch {} }}
+        >
+          <MapLibre.Camera ref={cameraRef}
+            centerCoordinate={[ (region?.longitude ?? 0), (region?.latitude ?? 20) ]}
+            zoomLevel={Math.log2(360 / Math.max(region?.latitudeDelta || 80, 0.00001))}
+          />
+          {routesVisible && tripPaths.length > 0 && (
+            <MapLibre.ShapeSource id="trip_paths" shape={{ type: 'FeatureCollection', features: tripPaths.map(p => ({ type:'Feature', properties:{ key: p.key }, geometry:{ type:'LineString', coordinates: p.coords.map(c => [c.longitude, c.latitude]) } })) }}>
+              <MapLibre.LineLayer id="trip_paths_layer" style={{ lineColor: routeColor, lineWidth: ROUTE_STROKE_WIDTH }} />
+            </MapLibre.ShapeSource>
+          )}
+          {routesVisible && arrowMarkers.map(am => (
+            <MapLibre.PointAnnotation key={am.key} id={am.key} coordinate={[am.lng, am.lat]}>
+              <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
+                  <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2 }} />
+                </View>
+              </View>
+            </MapLibre.PointAnnotation>
+          ))}
+          {clusters.map(item => (
+            item.type === 'point' ? (
+              <MapLibre.PointAnnotation key={item.point.key} id={item.point.key} coordinate={[item.point.lng, item.point.lat]}>
+                <Pressable onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)} accessibilityLabel={`Note: ${item.point.title}`}>
+                  <View style={{ backgroundColor: themeColors.card, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: themeColors.menuBorder }}>
+                    <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 12 }}>{item.point.title}</Text>
+                    {!!item.point.subtitle && <Text style={{ color: themeColors.textSecondary, fontSize: 11 }}>{item.point.subtitle}</Text>}
+                  </View>
+                </Pressable>
+              </MapLibre.PointAnnotation>
+            ) : (
+              <MapLibre.PointAnnotation key={item.cluster.key} id={item.cluster.key} coordinate={[item.cluster.lng, item.cluster.lat]}>
+                <Pressable onPress={() => zoomIntoCluster(item.cluster)} accessibilityLabel={`Cluster count ${item.cluster.count}`}>
+                  <ClusterBubble count={item.cluster.count} />
+                </Pressable>
+              </MapLibre.PointAnnotation>
+            )
+          ))}
+          {portMarkers.map(pm => (
+            <MapLibre.PointAnnotation key={pm.key} id={pm.key} coordinate={[pm.lng, pm.lat]}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
+            </MapLibre.PointAnnotation>
+          ))}
+        </MapLibre.MapView>
+      );
+    }
+    if (MapComponents) {
+      return (
+        <MapComponents.MapView
+          ref={(ref: any) => { mapRef.current = ref; }}
+          style={styles.map}
+          initialRegion={initial}
+            customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
+            mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
+            onLongPress={async (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => { try { const coord = e.nativeEvent.coordinate; if (coord) await handleLongPressAtCoord(coord); } catch {} }}
+          >
+                {MapComponents && MapComponents.UrlTile ? (
+                <MapComponents.UrlTile urlTemplate={tile.urlTemplate} maximumZ={19} flipY={false} />
+                ) : null}
+                {routesVisible && tripPaths.map((path: TripPath) => (
+                <MapComponents.Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
+                ))}
+                {routesVisible && arrowMarkers.map((am: ArrowMarker) => (
+            <MapComponents.Marker key={am.key} coordinate={{ latitude: am.lat, longitude: am.lng }} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false} zIndex={5000} accessibilityLabel="Direction arrow">
+              <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
+                  <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2, textShadowColor: '#00000055', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }} />
+                </View>
+              </View>
+            </MapComponents.Marker>
+          ))}
+          {clusters.map(item => (
+            item.type === 'point' ? (
+              <MapComponents.Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }} pinColor={(themeColors as any).primaryDark || themeColors.primary} tracksViewChanges={false} accessibilityLabel={`Note: ${item.point.title}`}>
+                <MapComponents.Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
+                  <View style={styles.calloutBubble}>
+                    <Text style={styles.calloutTitle}>{item.point.title}</Text>
+                    {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
+                    <Text style={styles.calloutAction}>Open note</Text>
+                  </View>
+                </MapComponents.Callout>
+              </MapComponents.Marker>
+            ) : (
+              <MapComponents.Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
+                <ClusterBubble count={item.cluster.count} />
+              </MapComponents.Marker>
+            )
+          ))}
+          {portMarkers.map(pm => (
+            <MapComponents.Marker key={pm.key} coordinate={{ latitude: pm.lat, longitude: pm.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={9999} title={pm.title || 'Planned port'} description={'Planned port'} accessibilityLabel={`Planned port: ${pm.title}`}>
+              <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
+            </MapComponents.Marker>
+          ))}
+        </MapComponents.MapView>
+      );
+    }
+    return (
+      <View style={[styles.map, { alignItems: 'center', justifyContent: 'center' }]}>
+        <Text style={{ color: themeColors.textSecondary, textAlign: 'center', paddingHorizontal: 16 }}>
+          Map preview unavailable in this environment. Build and run a dev client to enable maps.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
         <>
-          {/* Android: Use MapLibre if available to avoid Google watermark */}
-          {Platform.OS === 'android' && MapLibre ? (
-            <MapLibre.MapView style={styles.map} styleURL={tile.styleURL || undefined}
-              onLongPress={(e: any) => {
-                try {
-                  const coords = e?.geometry?.coordinates || e?.coordinates;
-                  if (coords && coords.length >= 2) {
-                    const coord = { latitude: coords[1], longitude: coords[0] };
-                    setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
-                  }
-                } catch {}
-              }}
-            >
-              <MapLibre.Camera ref={cameraRef}
-                centerCoordinate={[ (region?.longitude ?? 0), (region?.latitude ?? 20) ]}
-                zoomLevel={Math.log2(360 / Math.max(region?.latitudeDelta || 80, 0.00001))}
-              />
-              {/* Paths */}
-              {routesVisible && tripPaths.length > 0 && (
-                <MapLibre.ShapeSource id="trip_paths" shape={{ type: 'FeatureCollection', features: tripPaths.map(p => ({ type:'Feature', properties:{ key: p.key }, geometry:{ type:'LineString', coordinates: p.coords.map(c => [c.longitude, c.latitude]) } })) }}>
-                  <MapLibre.LineLayer id="trip_paths_layer" style={{ lineColor: routeColor, lineWidth: ROUTE_STROKE_WIDTH }} />
-                </MapLibre.ShapeSource>
-              )}
-              {/* Direction arrows */}
-              {routesVisible && arrowMarkers.map(am => (
-                <MapLibre.PointAnnotation key={am.key} id={am.key} coordinate={[am.lng, am.lat]}>
-                  <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
-                    <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
-                      <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2 }} />
-                    </View>
-                  </View>
-                </MapLibre.PointAnnotation>
-              ))}
-              {/* Note markers and clusters */}
-              {clusters.map(item => (
-                item.type === 'point' ? (
-                  <MapLibre.PointAnnotation key={item.point.key} id={item.point.key} coordinate={[item.point.lng, item.point.lat]}>
-                    <Pressable onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)} accessibilityLabel={`Note: ${item.point.title}`}>
-                      <View style={{ backgroundColor: themeColors.card, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: themeColors.menuBorder }}>
-                        <Text style={{ color: themeColors.text, fontWeight: '700', fontSize: 12 }}>{item.point.title}</Text>
-                        {!!item.point.subtitle && <Text style={{ color: themeColors.textSecondary, fontSize: 11 }}>{item.point.subtitle}</Text>}
-                      </View>
-                    </Pressable>
-                  </MapLibre.PointAnnotation>
-                ) : (
-                  <MapLibre.PointAnnotation key={item.cluster.key} id={item.cluster.key} coordinate={[item.cluster.lng, item.cluster.lat]}>
-                    <Pressable onPress={() => zoomIntoCluster(item.cluster)} accessibilityLabel={`Cluster count ${item.cluster.count}`}>
-                      <ClusterBubble count={item.cluster.count} />
-                    </Pressable>
-                  </MapLibre.PointAnnotation>
-                )
-              ))}
-              {/* Port markers */}
-              {portMarkers.map(pm => (
-                <MapLibre.PointAnnotation key={pm.key} id={pm.key} coordinate={[pm.lng, pm.lat]}>
-                  <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
-                </MapLibre.PointAnnotation>
-              ))}
-            </MapLibre.MapView>
-          ) : MapComponents ? (
-          <MapComponents.MapView
-            ref={(ref: any) => { mapRef.current = ref; }}
-            style={styles.map}
-            initialRegion={initial}
-              customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
-              mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
-            onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
-            onLongPress={async e => {
-              const coord = e.nativeEvent.coordinate; setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
-              try {
-                const perm = await Location.getForegroundPermissionsAsync();
-                if (!perm.granted && perm.canAskAgain) { const req = await Location.requestForegroundPermissionsAsync(); if (!req.granted) {} }
-                const res = await Location.reverseGeocodeAsync({ latitude: coord.latitude, longitude: coord.longitude });
-                if (res && res.length) { const r = res[0]; const parts = [r.city || r.district || r.subregion, r.region, r.country].filter(Boolean) as string[]; const name = parts.filter((p, idx) => !parts.slice(0, idx).includes(p)).join(', '); setPendingPlaceName(name || null); }
-              } catch {}
-            }}
-          >
-          <MapComponents.MapView
-            ref={(ref: any) => { mapRef.current = ref; }}
-            style={styles.map}
-            initialRegion={initial}
-              customMapStyle={colorScheme === 'dark' ? mapStyleDark : mapStyleLight}
-              mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
-            onRegionChangeComplete={async (r: Region) => { setRegion(r); try { await AsyncStorage.setItem(REGION_KEY, JSON.stringify(r)); } catch {} }}
-            onLongPress={async e => {
-              const coord = e.nativeEvent.coordinate; setPendingCoord(coord); setPendingPlaceName(null); setAddLocationModalVisible(true);
-              try {
-                const perm = await Location.getForegroundPermissionsAsync();
-                if (!perm.granted && perm.canAskAgain) { const req = await Location.requestForegroundPermissionsAsync(); if (!req.granted) {} }
-                const res = await Location.reverseGeocodeAsync({ latitude: coord.latitude, longitude: coord.longitude });
-                if (res && res.length) { const r = res[0]; const parts = [r.city || r.district || r.subregion, r.region, r.country].filter(Boolean) as string[]; const name = parts.filter((p, idx) => !parts.slice(0, idx).includes(p)).join(', '); setPendingPlaceName(name || null); }
-              } catch {}
-            }}
-          >
-            {MapComponents && MapComponents.UrlTile ? (
-              <MapComponents.UrlTile
-                urlTemplate={tile.urlTemplate}
-                maximumZ={19}
-                flipY={false}
-              />
-            ) : null}
-            {routesVisible && tripPaths.map(path => (
-              <MapComponents.Polyline key={path.key} coordinates={path.coords} strokeColor={routeColor} strokeWidth={ROUTE_STROKE_WIDTH} lineCap="round" lineJoin="round" />
-            ))}
-            {routesVisible && arrowMarkers.map(am => (
-              <MapComponents.Marker key={am.key} coordinate={{ latitude: am.lat, longitude: am.lng }} anchor={{ x: 0.5, y: 0.5 }} flat tracksViewChanges={false} zIndex={5000} accessibilityLabel="Direction arrow">
-                <View style={{ width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6, alignItems: 'center', justifyContent: 'center' }}>
-                  <View style={{ transform: [{ rotate: `${am.angle}deg` }], alignItems: 'center', justifyContent: 'center', width: ARROW_HEIGHT + 6, height: ARROW_HEIGHT + 6 }}>
-                    <Ionicons name="arrow-up" size={ARROW_HEIGHT + 4} color={routeColor} style={{ marginTop: -2, textShadowColor: '#00000055', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 }} />
-                  </View>
-                </View>
-              </MapComponents.Marker>
-            ))}
-            {clusters.map(item => (
-              item.type === 'point' ? (
-                <MapComponents.Marker key={item.point.key} coordinate={{ latitude: item.point.lat, longitude: item.point.lng }} pinColor={(themeColors as any).primaryDark || themeColors.primary} tracksViewChanges={false} accessibilityLabel={`Note: ${item.point.title}`}>
-                  <MapComponents.Callout tooltip onPress={() => router.push(`/trips/${item.point.tripId}/note/${item.point.noteId}` as any)}>
-                    <View style={styles.calloutBubble}>
-                      <Text style={styles.calloutTitle}>{item.point.title}</Text>
-                      {!!item.point.subtitle && <Text style={styles.calloutSubtitle}>{item.point.subtitle}</Text>}
-                      <Text style={styles.calloutAction}>Open note</Text>
-                    </View>
-                  </MapComponents.Callout>
-                </MapComponents.Marker>
-              ) : (
-                <MapComponents.Marker key={item.cluster.key} coordinate={{ latitude: item.cluster.lat, longitude: item.cluster.lng }} onPress={() => zoomIntoCluster(item.cluster)} tracksViewChanges={false}>
-                  <ClusterBubble count={item.cluster.count} />
-                </MapComponents.Marker>
-              )
-            ))}
-            {portMarkers.map(pm => (
-              <MapComponents.Marker key={pm.key} coordinate={{ latitude: pm.lat, longitude: pm.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false} zIndex={9999} title={pm.title || 'Planned port'} description={'Planned port'} accessibilityLabel={`Planned port: ${pm.title}`}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 2, shadowOffset: { width: 0, height: 1 }, elevation: 2 }} />
-              </MapComponents.Marker>
-            ))}
-          </MapComponents.MapView>
-          ) : (
-            <View style={[styles.map, { alignItems: 'center', justifyContent: 'center' }]}>
-              <Text style={{ color: themeColors.textSecondary, textAlign: 'center', paddingHorizontal: 16 }}>
-                Map preview unavailable in this environment. Build and run a dev client to enable maps.
-              </Text>
-            </View>
-          )}
+          {/* Render map (MapLibre or fallback handled in renderMap) */}
+          {renderMap()}
           <View style={{ position: 'absolute', bottom: 16, right: 16, alignItems: 'flex-end' }}>
-              {/* Temporary debug: clear ports cache */}
               <Pressable
                 onPress={async () => {
                   try {
@@ -550,7 +670,7 @@ export default function MapScreen() {
         <Pressable style={{ flex:1, backgroundColor:'rgba(0,0,0,0.4)' }} onPress={() => { setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null); }} />
         <View style={{ position:'absolute', left:0, right:0, bottom:0, padding:18 }} pointerEvents="box-none">
           <View style={{ backgroundColor: themeColors.card, borderRadius:16, padding:16, borderWidth:1, borderColor: themeColors.menuBorder }}>
-            <Text style={{ fontSize:16, fontWeight:'700', marginBottom:10, color: themeColors.text }}>Add Location to Trip</Text>
+            <Text style={{ fontSize:16, fontWeight:'700', marginBottom:10, color: themeColors.text }}>Add Port to Trip</Text>
             {!!pendingCoord && (
               <Text style={{ fontSize:12, color: themeColors.textSecondary, marginBottom:12 }}>
                 {pendingPlaceName ? pendingPlaceName : `${pendingCoord.latitude.toFixed(4)}, ${pendingCoord.longitude.toFixed(4)}${pendingPlaceName===null ? ' (resolving...)' : ''}`}
@@ -571,9 +691,21 @@ export default function MapScreen() {
                     onPress={async () => {
                       if (!pendingCoord) return;
                       setAddingTripId(item.id);
-                      const newNote: any = { id: uid(), date: new Date().toISOString().slice(0,10), title: 'Pinned Location', description: '', location: { lat: pendingCoord.latitude, lng: pendingCoord.longitude }, locationName: pendingPlaceName || undefined };
-                      const updated: Trip = { ...item, days: [...item.days, newNote] };
-                      await upsertTrip(updated); await refresh(); setAddLocationModalVisible(false); setPendingCoord(null); setAddingTripId(null);
+                      const label = (pendingPlaceName && pendingPlaceName.trim()) || `${pendingCoord.latitude.toFixed(4)}, ${pendingCoord.longitude.toFixed(4)}`;
+                      // Persist a cache entry so name resolves to the exact pressed coordinates
+                      try {
+                        await upsertCachedPort({ name: label, lat: pendingCoord.latitude, lng: pendingCoord.longitude, isCruise: true, kind: 'port' } as any);
+                      } catch {}
+                      const prevPorts = Array.isArray(item.ports) ? item.ports : [];
+                      // avoid duplicates (case-insensitive)
+                      const exists = prevPorts.some(p => (p || '').trim().toLowerCase() === label.trim().toLowerCase());
+                      const nextPorts = exists ? prevPorts : [...prevPorts, label];
+                      const updated: Trip = { ...item, ports: nextPorts } as Trip;
+                      await upsertTrip(updated);
+                      await refresh(); // reload trips + ports cache so marker appears immediately
+                      setAddLocationModalVisible(false);
+                      setPendingCoord(null);
+                      setAddingTripId(null);
                     }}
                   >
                     <Text style={{ fontWeight:'600', color: themeColors.text }}>{item.title}</Text>

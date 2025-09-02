@@ -10,13 +10,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateWithPrefs, usePreferences } from '../../../../../components/PreferencesContext';
 import { useTheme } from '../../../../../components/ThemeContext';
 import { shortLocationLabel } from '../../../../../lib/location';
-import { getTileConfig } from '../../../../../lib/tiles';
 import { persistPhotoUris, saveCameraPhotoToLibrary } from '../../../../../lib/media';
 import { searchPlaces } from '../../../../../lib/places';
 import { getTripById, upsertTrip } from '../../../../../lib/storage';
+import { getTileConfig } from '../../../../../lib/tiles';
 import { SELECTABLE_WEATHER_OPTIONS, getWeatherColor } from '../../../../../lib/weather';
 import { Note, Trip } from '../../../../../types';
 
+/**
+ * React component EditNoteScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function EditNoteScreen() {
 	const { themeColors } = useTheme();
 	const { prefs } = usePreferences();
@@ -46,26 +50,123 @@ export default function EditNoteScreen() {
 	// Removed continuous follow logic; using one-shot recenter button
 	const tile = useMemo(() => getTileConfig(), []);
 
-	function toISODate(d: Date) {
+	/**
+     * React component renderMap: TODO describe purpose and where it’s used.
+     * @returns {React.JSX.Element} TODO: describe
+     */
+    function renderMap() {
+		if (Platform.OS === 'android' && MapLibre) {
+			return (
+				<View style={styles.mapBox}>
+					<MapLibre.MapView style={{ flex: 1 }} styleURL={tile.styleURL || undefined}
+						onLongPress={(e: any) => {
+							try {
+								const coords = e?.geometry?.coordinates || e?.coordinates;
+								if (coords && coords.length >= 2) {
+									onMapPress({ nativeEvent: { coordinate: { latitude: coords[1], longitude: coords[0] } } } as any);
+								}
+							} catch {}
+						}}
+					>
+						<MapLibre.Camera ref={cameraRef}
+							centerCoordinate={[ location?.lng || -122.4324, location?.lat || 37.78825 ]}
+							zoomLevel={12}
+						/>
+						{location && (
+							<MapLibre.PointAnnotation id="picked_loc" coordinate={[location.lng, location.lat]}>
+								<View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
+							</MapLibre.PointAnnotation>
+						)}
+					</MapLibre.MapView>
+					{/* Map type toggle removed on Android to avoid Google base map */}
+					<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
+						<Ionicons name="locate" size={16} color={themeColors.primary} />
+						<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
+					</Pressable>
+					<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
+						<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
+					</View>
+				</View>
+			);
+		}
+		if (MapComponents) {
+			return (
+				<View style={styles.mapBox}>
+					<MapComponents.MapView style={{ flex: 1 }}
+						initialRegion={{ latitude: location?.lat || 37.78825, longitude: location?.lng || -122.4324, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
+						onPress={onMapPress}
+						mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
+						ref={MapRef}
+					>
+						{MapComponents.UrlTile ? (
+							<MapComponents.UrlTile urlTemplate={tile.urlTemplate} maximumZ={19} flipY={false} />
+						) : null}
+						{location && (
+							<MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
+						)}
+					</MapComponents.MapView>
+					{/* Map type toggle removed on Android to avoid Google base map */}
+					{Platform.OS !== 'android' && (
+						<Pressable onPress={() => setMapType(m => m === 'standard' ? 'hybrid' : 'standard')} style={styles.overlayToggle} accessibilityLabel="Toggle map type">
+							<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
+						</Pressable>
+					)}
+					<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
+						<Ionicons name="locate" size={16} color={themeColors.primary} />
+						<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
+					</Pressable>
+					<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
+						<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
+					</View>
+				</View>
+			);
+		}
+		return (
+			<Text style={{ color: themeColors.textSecondary, marginTop: 8, fontSize: 12 }}>Map preview unavailable.</Text>
+		);
+	}
+
+	/**
+     * React component toISODate: TODO describe purpose and where it’s used.
+     * @param {Date} d - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    function toISODate(d: Date) {
 		const y = d.getFullYear();
 		const m = `${d.getMonth() + 1}`.padStart(2, '0');
 		const day = `${d.getDate()}`.padStart(2, '0');
 		return `${y}-${m}-${day}`;
 	}
 
-	function parseISODate(s: string | undefined): Date {
+	/**
+     * React component parseISODate: TODO describe purpose and where it’s used.
+     * @param {string | undefined} s - TODO: describe
+     * @returns {Date} TODO: describe
+     */
+    function parseISODate(s: string | undefined): Date {
 		if (!s) return new Date();
 		const [y, m, d] = s.split('-').map((p) => parseInt(p, 10));
 		if (!y || !m || !d) return new Date();
 		return new Date(y, m - 1, d);
 	}
 
-	function onChangeDate(_event: DateTimePickerEvent, picked?: Date) {
+	/**
+     * React component onChangeDate: TODO describe purpose and where it’s used.
+     * @param {any} _event - TODO: describe
+     * @param {Date | undefined} picked - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function onChangeDate(_event: DateTimePickerEvent, picked?: Date) {
 		if (Platform.OS === 'android') setShowDatePicker(false);
 		if (picked) setDate(toISODate(picked));
 	}
 
-	function formatDisplayDate(iso: string): string {
+	/**
+     * React component formatDisplayDate: TODO describe purpose and where it’s used.
+     * @param {string} iso - TODO: describe
+     * @returns {string} TODO: describe
+     */
+    function formatDisplayDate(iso: string): string {
 		if (!iso) return '';
 		return formatDateWithPrefs(iso, prefs, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 	}
@@ -129,6 +230,21 @@ export default function EditNoteScreen() {
 		})();
 	}, [id, noteId]);
 
+	// Quiet MapLibre dev logs for transient canceled requests
+	useEffect(() => {
+		try {
+			if (Platform.OS === 'android' && MapLibre?.Logger) {
+				MapLibre.Logger.setLogLevel?.('error');
+				MapLibre.Logger.setLogCallback?.((log: any) => {
+					const msg = String(log?.message || '');
+					const tag = String(log?.tag || '');
+					if (tag.includes('Mbgl-HttpRequest') && /Canceled/i.test(msg)) return true;
+					return false;
+				});
+			}
+		} catch {}
+	}, [MapLibre]);
+
 	// Compute selectable date bounds for the picker
 	const minSelectableDate = useMemo(() => (trip?.startDate ? parseISODate(trip.startDate) : undefined), [trip?.startDate]);
 	const maxSelectableDate = useMemo(() => (trip?.endDate ? parseISODate(trip.endDate) : undefined), [trip?.endDate]);
@@ -152,7 +268,11 @@ export default function EditNoteScreen() {
 		})();
 	}, [location]);
 
-	async function pickFromLibrary() {
+	/**
+     * React component pickFromLibrary: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function pickFromLibrary() {
 		const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ['images'],
 			allowsMultipleSelection: true,
@@ -165,7 +285,12 @@ export default function EditNoteScreen() {
 		}
 	}
 
-	function onMapPress(e: any) {
+	/**
+     * React component onMapPress: TODO describe purpose and where it’s used.
+     * @param {any} e - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function onMapPress(e: any) {
 		if (!e?.nativeEvent?.coordinate) return;
 		const { latitude, longitude } = e.nativeEvent.coordinate;
 		setLocation({ lat: latitude, lng: longitude });
@@ -196,7 +321,18 @@ export default function EditNoteScreen() {
 		return () => clearTimeout(handle);
 	}, [locationQuery]);
 
-	async function recenterOnUser() {
+	// Dev-only: log searchResults changes to help debug missing suggestions
+	useEffect(() => {
+		try {
+			if (__DEV__) console.debug('[EditNote] searchResults', searchResults);
+		} catch {}
+	}, [searchResults]);
+
+	/**
+     * React component recenterOnUser: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function recenterOnUser() {
 		try {
 			const { status } = await Location.requestForegroundPermissionsAsync();
 			if (status !== 'granted') return;
@@ -210,7 +346,11 @@ export default function EditNoteScreen() {
 		} catch {}
 	}
 
-	async function doSearch() {
+	/**
+     * React component doSearch: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function doSearch() {
 		if (!locationQuery.trim()) return;
 		setSearching(true);
 		try {
@@ -219,7 +359,12 @@ export default function EditNoteScreen() {
 		} catch { setSearchResults([]); } finally { setSearching(false); }
 	}
 
-	function selectSearched(r: { lat: number; lng: number; label: string }) {
+	/**
+     * React component selectSearched: TODO describe purpose and where it’s used.
+     * @param {{ lat: number; lng: number; label: string; }} r - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function selectSearched(r: { lat: number; lng: number; label: string }) {
 		setLocation({ lat: r.lat, lng: r.lng });
 		setLocationLabel(r.label);
 		setSearchResults([]);
@@ -249,7 +394,11 @@ export default function EditNoteScreen() {
 		location || color || emoji
 	);
 
-	async function takePhoto() {
+	/**
+     * React component takePhoto: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function takePhoto() {
 		const result = await ImagePicker.launchCameraAsync({
 			mediaTypes: ['images'],
 			quality: 0.8,
@@ -262,11 +411,20 @@ export default function EditNoteScreen() {
 		}
 	}
 
-	function removePhotoAt(index: number) {
+	/**
+     * React component removePhotoAt: TODO describe purpose and where it’s used.
+     * @param {number} index - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    function removePhotoAt(index: number) {
 		setPhotos(prev => prev.filter((_, i) => i !== index));
 	}
 
-	async function onSave() {
+	/**
+     * React component onSave: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onSave() {
 		if (!trip || !log) return;
 		// Validate date within trip range if available
 		if (date) {
@@ -306,7 +464,11 @@ export default function EditNoteScreen() {
 		router.replace(`/trips/${trip.id}`);
 	}
 
-	async function onDelete() {
+	/**
+     * React component onDelete: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onDelete() {
 		if (!trip || !log) return;
 		Alert.alert('Delete note', 'Are you sure you want to permanently delete this note?', [
 			{ text: 'Cancel', style: 'cancel' },
@@ -346,10 +508,12 @@ export default function EditNoteScreen() {
 		emojiRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 		emojiBtn: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card },
 		emojiBtnActive: { borderColor: themeColors.primary, backgroundColor: themeColors.primary + '22' },
+		locationSearchWrap: { position: 'relative' },
 		locationSearchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
 		locationSearchInput: { flex: 1, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 10 },
 		locationSearchBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, backgroundColor: themeColors.primary, alignItems: 'center', justifyContent: 'center' },
-		locationResults: { marginTop: 8, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, borderRadius: 10, overflow: 'hidden', position: 'relative', zIndex: 50, elevation: 6, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 } },
+		// Positioned absolute so it can overlay nearby content and respect zIndex on Android
+		locationResults: { position: 'absolute', top: 52, left: 0, right: 0, borderWidth: 1, borderColor: themeColors.menuBorder, backgroundColor: themeColors.card, borderRadius: 10, overflow: 'hidden', zIndex: 9999, elevation: 12, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, marginTop: 0 },
 		locationResultItem: { paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: themeColors.menuBorder },
 		locationResultItemLast: { borderBottomWidth: 0 },
 		mapBox: { height: 240, borderRadius: 12, overflow: 'hidden', marginTop: 10 },
@@ -449,6 +613,15 @@ export default function EditNoteScreen() {
 							{searching ? <ActivityIndicator size="small" color={themeColors.badgeText} /> : <Ionicons name="search" size={18} color={themeColors.badgeText} />}
 						</Pressable>
 					</View>
+					{/* Dev debug: show quick snapshot of results when in development */}
+					{__DEV__ && (
+						<View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: themeColors.card, borderWidth: 1, borderColor: themeColors.menuBorder }}>
+							<Text style={{ color: themeColors.textSecondary, fontSize: 12 }}>DEBUG: {searchResults.length} results</Text>
+							{searchResults.slice(0, 3).map((r, i) => (
+								<Text key={`dbg_${i}`} style={{ color: themeColors.text, fontSize: 12 }}>{r.label}</Text>
+							))}
+						</View>
+					)}
 					{!!searchResults.length && (
 						<View style={styles.locationResults}>
 							{searchResults.map((r, idx) => (
@@ -459,69 +632,7 @@ export default function EditNoteScreen() {
 							))}
 						</View>
 					)}
-					{Platform.OS === 'android' && MapLibre ? (
-						<View style={styles.mapBox}>
-							<MapLibre.MapView style={{ flex: 1 }} styleURL={tile.styleURL || undefined}
-								onLongPress={(e: any) => {
-									try {
-										const coords = e?.geometry?.coordinates || e?.coordinates;
-										if (coords && coords.length >= 2) {
-											onMapPress({ nativeEvent: { coordinate: { latitude: coords[1], longitude: coords[0] } } } as any);
-										}
-									} catch {}
-								}}
-							>
-								<MapLibre.Camera ref={cameraRef}
-									centerCoordinate={[ location?.lng || -122.4324, location?.lat || 37.78825 ]}
-									zoomLevel={12}
-								/>
-								{location && (
-									<MapLibre.PointAnnotation id="picked_loc" coordinate={[location.lng, location.lat]}>
-										<View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: themeColors.accent, borderWidth: 2, borderColor: '#fff' }} />
-									</MapLibre.PointAnnotation>
-								)}
-							</MapLibre.MapView>
-							{/* Map type toggle removed on Android to avoid Google base map */}
-							<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
-								<Ionicons name="locate" size={16} color={themeColors.primary} />
-								<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
-							</Pressable>
-							<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
-								<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
-							</View>
-						</View>
-					) : (MapComponents ? (
-						<View style={styles.mapBox}>
-							<MapComponents.MapView style={{ flex: 1 }}
-								initialRegion={{ latitude: location?.lat || 37.78825, longitude: location?.lng || -122.4324, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
-								onPress={onMapPress}
-								mapType={Platform.OS === 'android' ? ('none' as any) : mapType}
-								ref={MapRef}
-							>
-								{MapComponents.UrlTile ? (
-									<MapComponents.UrlTile urlTemplate={tile.urlTemplate} maximumZ={19} flipY={false} />
-								) : null}
-								{location && (
-									<MapComponents.Marker coordinate={{ latitude: location.lat, longitude: location.lng }} />
-								)}
-							</MapComponents.MapView>
-							{/* Map type toggle removed on Android to avoid Google base map */}
-							{Platform.OS !== 'android' && (
-								<Pressable onPress={() => setMapType(m => m === 'standard' ? 'hybrid' : 'standard')} style={styles.overlayToggle} accessibilityLabel="Toggle map type">
-									<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>{mapType === 'standard' ? 'Satellite' : 'Map'}</Text>
-								</Pressable>
-							)}
-							<Pressable onPress={recenterOnUser} style={styles.overlayBtn} accessibilityLabel="Recenter on me">
-								<Ionicons name="locate" size={16} color={themeColors.primary} />
-								<Text style={{ color: themeColors.primary, fontWeight: '600', fontSize: 12 }}>Recenter</Text>
-							</Pressable>
-							<View style={{ position: 'absolute', bottom: 6, left: 8 }} pointerEvents="none">
-								<Text style={{ color: themeColors.textSecondary, fontSize: 10 }}>{tile.attribution}</Text>
-							</View>
-						</View>
-					) : (
-						<Text style={{ color: themeColors.textSecondary, marginTop: 8, fontSize: 12 }}>Map preview unavailable.</Text>
-					)}
+					{renderMap()}
 				</View>
 
 				{/* Section: Color */}
@@ -567,6 +678,11 @@ export default function EditNoteScreen() {
 		);
 }
 
+/**
+ * React component geocodeToLabel: TODO describe purpose and where it’s used.
+ * @param {any} query - TODO: describe
+ * @returns {any} TODO: describe
+ */
 async function geocodeToLabel(query: string): Promise<{ lat: number; lng: number; label: string }[]> {
 	try {
 		if (!query.trim()) return [];
@@ -596,6 +712,11 @@ async function geocodeToLabel(query: string): Promise<{ lat: number; lng: number
 	} catch { return []; }
 }
 
+/**
+ * React component buildLabel: TODO describe purpose and where it’s used.
+ * @param {any} r - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function buildLabel(r: any): string {
 	const parts = [r.name, r.street, r.city, r.region, r.country].filter(Boolean);
 	const uniq: string[] = [];

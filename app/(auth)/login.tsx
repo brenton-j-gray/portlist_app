@@ -4,6 +4,10 @@ import { Alert, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { useAuth } from '../../components/AuthContext';
 import { useTheme } from '../../components/ThemeContext';
 
+/**
+ * React component LoginScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function LoginScreen() {
   const { themeColors } = useTheme();
   const { login, token, loading } = useAuth();
@@ -26,7 +30,11 @@ export default function LoginScreen() {
   skipText: { color: themeColors.primaryDark, fontWeight: '700' },
   }), [themeColors]);
 
-  async function onLogin() {
+  /**
+     * React component onLogin: TODO describe purpose and where it’s used.
+     * @returns {Promise<void>} TODO: describe
+     */
+    async function onLogin() {
     try {
       setBusy(true);
       // Attempt login; if MFA required, prompt for TOTP

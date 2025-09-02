@@ -15,14 +15,28 @@ import { getTrips, saveTrips } from '../../../lib/storage';
 import { Trip } from '../../../types';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+/**
+ * React component parseLocalYmd: TODO describe purpose and where it’s used.
+ * @param {any} s - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function parseLocalYmd(s: string): Date {
 	const [y, m, d] = s.split('-').map(Number);
 	return new Date(y, (m || 1) - 1, d || 1);
 }
+/**
+ * React component startOfToday: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function startOfToday(): Date {
 	const now = new Date();
 	return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
+/**
+ * React component parseLocalFromString: TODO describe purpose and where it’s used.
+ * @param {any} dateStr - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function parseLocalFromString(dateStr: string | undefined): Date | null {
 	if (!dateStr) return null;
 	const ymd = String(dateStr).slice(0, 10); // supports 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:mm...'
@@ -34,6 +48,12 @@ function parseLocalFromString(dateStr: string | undefined): Date | null {
 	return isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * React component computeDurationDays: TODO describe purpose and where it’s used.
+ * @param {any} start - TODO: describe
+ * @param {any} end - TODO: describe
+ * @returns {any} TODO: describe
+ */
 function computeDurationDays(start?: string, end?: string): number | null {
 	if (!start || !end) return null;
 	const s = parseLocalFromString(start);
@@ -56,6 +76,10 @@ const CARD_SHADOW: any = {
 	position: 'relative',
 };
 
+/**
+ * React component TripsScreen: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function TripsScreen() {
 	const { themeColors } = useTheme();
 	const { prefs, setPref } = usePreferences();
@@ -139,14 +163,24 @@ export default function TripsScreen() {
 	});
 
 		// Completed if marked completed OR it has an endDate strictly before today
-		function isTripCompleted(t: Trip) {
+		/**
+     * React component isTripCompleted: TODO describe purpose and where it’s used.
+     * @param {import("D:/Code/portlist_app/types").Trip} t - TODO: describe
+     * @returns {boolean} TODO: describe
+     */
+    function isTripCompleted(t: Trip) {
 			if (t.completed) return true;
 			if (!t.endDate) return false;
 			const endTs = parseLocalYmd(t.endDate).getTime();
 			return endTs < startOfToday().getTime();
 		}
 		// In progress if start is on/before today and (no end or end is on/after today), and not explicitly completed
-		function isTripInProgress(t: Trip) {
+		/**
+     * React component isTripInProgress: TODO describe purpose and where it’s used.
+     * @param {import("D:/Code/portlist_app/types").Trip} t - TODO: describe
+     * @returns {boolean} TODO: describe
+     */
+    function isTripInProgress(t: Trip) {
 			if (t.completed) return false;
 			if (!t.startDate) return false;
 			const today = startOfToday().getTime();
@@ -724,7 +758,7 @@ export default function TripsScreen() {
 										<Animated.View style={{ flexDirection: 'row', alignItems: 'center', opacity }}>
 											<Animated.View style={{ transform: [{ scale }] }}>
 												<Pressable
-													onPress={() => router.push({ pathname: '/(tabs)/trips/[id]' as any, params: { id: item.id } } as any)}
+                                            onPress={() => router.push({ pathname: '/(tabs)/trips/[id]/edit' as any, params: { id: item.id } } as any)}
 													accessibilityLabel={`Edit trip ${item.title}`}
 													style={{
 														width: 84,
@@ -839,7 +873,12 @@ export default function TripsScreen() {
 										</View>
 										{/* Date line restored under title */}
 											{(() => {
-											function fullFmt(d?: string) {
+											/**
+                                                     * React component fullFmt: TODO describe purpose and where it’s used.
+                                                     * @param {string | undefined} d - TODO: describe
+                                                     * @returns {string} TODO: describe
+                                                     */
+                                                    function fullFmt(d?: string) {
 												if (!d) return '';
 												return formatDateWithPrefs(d, prefs, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
 											}

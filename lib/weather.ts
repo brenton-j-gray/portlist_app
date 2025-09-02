@@ -12,6 +12,11 @@ export type CurrentWeather = {
 };
 
 // Map Open-Meteo WMO weather codes to simple keys used by our UI
+/**
+ * Function mapWeatherCodeToKey: TODO describe purpose and usage.
+ * @param {any} code - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function mapWeatherCodeToKey(code?: number): WeatherKey {
   if (code == null) return 'unknown';
   if ([0].includes(code)) return 'sunny'; // Clear sky
@@ -23,6 +28,11 @@ export function mapWeatherCodeToKey(code?: number): WeatherKey {
   return 'cloudy';
 }
 
+/**
+ * Function keyToLabel: TODO describe purpose and usage.
+ * @param {any} key - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function keyToLabel(key: WeatherKey): string {
   switch (key) {
     case 'sunny': return 'Sunny';
@@ -72,17 +82,33 @@ export const SELECTABLE_WEATHER_OPTIONS: WeatherOptionDef[] = (
   ['sunny','cloudy','rain','storm','snow','fog','wind'] as WeatherKey[]
 ).map(k => ({ key: k, label: keyToLabel(k), icon: WEATHER_ICON_MAP[k] }));
 
+/**
+ * Function getWeatherColor: TODO describe purpose and usage.
+ * @param {any} key - TODO: describe
+ * @param {any} fallback - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function getWeatherColor(key?: string, fallback?: string) {
   if (!key) return fallback || WEATHER_COLOR_MAP.unknown;
   return WEATHER_COLOR_MAP[(key as WeatherKey)] || fallback || WEATHER_COLOR_MAP.unknown;
 }
 
+/**
+ * Function getWeatherIconName: TODO describe purpose and usage.
+ * @param {any} key - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function getWeatherIconName(key?: string) {
   if (!key) return WEATHER_ICON_MAP.unknown;
   return WEATHER_ICON_MAP[(key as WeatherKey)] || WEATHER_ICON_MAP.unknown;
 }
 
 // Convenience WeatherPill component for consistent rendering
+/**
+ * React component WeatherPill: TODO describe purpose and where it’s used.
+ * @param {any} { weather, size = 'md' as const, label, trailing } - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export function WeatherPill({ weather, size = 'md' as const, label, trailing }: { weather: string; size?: 'sm' | 'md'; label?: string; trailing?: string }) {
   const content = (label || weather) + (trailing ? ` ${trailing}` : '');
   return React.createElement(
@@ -97,6 +123,12 @@ export function WeatherPill({ weather, size = 'md' as const, label, trailing }: 
   );
 }
 
+/**
+ * Function fetchCurrentWeather: TODO describe purpose and usage.
+ * @param {any} lat - TODO: describe
+ * @param {any} lon - TODO: describe
+ * @returns {any} TODO: describe
+ */
 export async function fetchCurrentWeather(lat: number, lon: number): Promise<CurrentWeather> {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`;

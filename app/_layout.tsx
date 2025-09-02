@@ -17,11 +17,27 @@ import { ThemeProvider, useTheme } from '../components/ThemeContext';
 import { ToastProvider } from '../components/ToastContext';
 import { pushTrips, syncTripsBackground } from '../lib/sync';
 
+/** Class RootErrorBoundary: TODO describe responsibility, props/state (if React), and main collaborators. */
 class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error?: Error }> {
   state: { error?: Error } = { };
-  static getDerivedStateFromError(error: Error) { return { error }; }
-  componentDidCatch(error: Error, info: any) { console.warn('Root layout error boundary caught', error, info); }
-  render() {
+  /**
+     * Method RootErrorBoundary.getDerivedStateFromError: TODO describe behavior and when it's called.
+     * @param {Error} error - TODO: describe
+     * @returns {{ error: Error; }} TODO: describe
+     */
+    static getDerivedStateFromError(error: Error) { return { error }; }
+  /**
+     * Method RootErrorBoundary.componentDidCatch: TODO describe behavior and when it's called.
+     * @param {Error} error - TODO: describe
+     * @param {any} info - TODO: describe
+     * @returns {void} TODO: describe
+     */
+    componentDidCatch(error: Error, info: any) { console.warn('Root layout error boundary caught', error, info); }
+  /**
+     * Method RootErrorBoundary.render: TODO describe behavior and when it's called.
+     * @returns {any} TODO: describe
+     */
+    render() {
     if (this.state.error) {
       return (
         <View style={styles.errContainer}>
@@ -35,6 +51,10 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 }
 
 
+/**
+ * React component AppLayoutInner: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 function AppLayoutInner() {
   const { themeColors, colorScheme } = useTheme();
   const { token, userName, userEmail, userAvatar } = useAuth();
@@ -75,7 +95,12 @@ function AppLayoutInner() {
   useEffect(() => {
     let cancelled = false;
     let ticking = false;
-    const doSyncIfEnabled = async (reason: 'focus' | 'interval') => {
+    const doSyncIfEnabled = /**
+     * React component doSyncIfEnabled: TODO describe purpose and where it’s used.
+     * @param {"focus" | "interval"} reason - TODO: describe
+     * @returns {Promise<void>} TODO: describe
+     */
+    async (reason: 'focus' | 'interval') => {
       if (ticking) return; // avoid overlapping syncs
       ticking = true;
       try {
@@ -149,7 +174,12 @@ function AppLayoutInner() {
   // Log to console for easier debugging in Metro/DevTools
   if (__DEV__) console.debug('[DEBUG] fontsLoaded=', fontsLoaded, 'resolvedDefaultFont=', resolvedDefaultFont);
 
-  const BackButton = ({ to, label }: { to?: Href; label?: string }) => {
+  const BackButton = /**
+   * React component BackButton: TODO describe purpose and where it’s used.
+   * @param {any} { to, label } - TODO: describe
+   * @returns {React.JSX.Element} TODO: describe
+   */
+  ({ to, label }: { to?: Href; label?: string }) => {
     // Compute parent route if `to` not provided, using canonical /(tabs)/trips hierarchy
     let computedTo: string | undefined = typeof to === 'string' ? to : undefined;
     if (!computedTo) {
@@ -276,6 +306,10 @@ function AppLayoutInner() {
   );
 }
 
+/**
+ * React component AppLayout: TODO describe purpose and where it’s used.
+ * @returns {any} TODO: describe
+ */
 export default function AppLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
