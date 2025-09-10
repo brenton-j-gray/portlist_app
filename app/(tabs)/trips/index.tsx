@@ -208,7 +208,14 @@ export default function TripsScreen() {
 			});
 		}
 
-	const styles = useMemo(() => StyleSheet.create({
+	const styles = useMemo(() => {
+		// New gradient colors: top = themeColors.primary, bottom = themeColors.background
+		const screenGradient = [themeColors.primary, themeColors.background];
+
+		return StyleSheet.create({
+			// Expose gradient array (can be used with <LinearGradient colors={styles.screenGradientColors} ...>)
+			screenGradientColors: screenGradient as any,
+
 			tabsBar: {
 				flexDirection: 'row',
 				alignItems: 'flex-end',
@@ -224,8 +231,8 @@ export default function TripsScreen() {
 			},
 			tabBtn: {
 				flex: 1,
-				paddingVertical: 10,
-				backgroundColor: themeColors.background,
+				paddingVertical: 15,
+				backgroundColor: 'transparent',
 				borderWidth: 1,
 				borderColor: themeColors.menuBorder,
 				borderBottomColor: themeColors.primary,
@@ -239,17 +246,16 @@ export default function TripsScreen() {
 				marginHorizontal: 2,
 			},
 			tabBtnActive: {
-				backgroundColor: themeColors.card,
+				backgroundColor: themeColors.primary,
 				borderColor: themeColors.primary,
 				borderBottomWidth: 0,
-				// Overlap the bottom strip so the active tab appears connected
 				marginBottom: -1,
 				zIndex: 3,
 			},
 			tabText: {
 				fontSize: 15,
 				fontWeight: '700',
-				color: themeColors.text,
+				color: themeColors.btnText,
 				letterSpacing: 0.2,
 			},
 			tabTextInactive: {
@@ -259,15 +265,15 @@ export default function TripsScreen() {
 				flexDirection: 'row',
 				alignItems: 'center',
 				marginBottom: 6,
-				marginTop: -2, // tighten space above search bar
+				marginTop: -2,
 			},
 			sortRow: {
-			flexDirection: 'row',
-			alignItems: 'center',
-			justifyContent: 'space-between',
-			marginBottom: 8,
-			gap: 8,
-		},
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'space-between',
+				marginBottom: 8,
+				gap: 8,
+			},
 			sortControls: {
 				flexDirection: 'row',
 				alignItems: 'center',
@@ -291,204 +297,228 @@ export default function TripsScreen() {
 				color: themeColors.primaryDark,
 				fontWeight: '700',
 			},
-		searchInput: { flex: 1, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.card, color: themeColors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-			secondaryBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
-			iconBtn: { padding: 10, borderRadius: 999, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
-		secondaryBtnText: { color: themeColors.text, fontWeight: '600' },
-		sortLabel: {
-			fontSize: 15,
-			color: themeColors.textSecondary,
-			marginRight: 6,
-			fontWeight: '500',
-		},
-		sortBtn: {
-			paddingVertical: 4,
-			paddingHorizontal: 10,
-			borderRadius: 6,
-			backgroundColor: themeColors.card,
-			borderWidth: 1,
-			borderColor: themeColors.primary + '22',
-			marginRight: 2,
-		},
-		sortBtnActive: {
-			backgroundColor: themeColors.primary + '18',
-			borderColor: themeColors.primary,
-		},
-    
-		sortBtnText: {
-			fontSize: 14,
-			color: themeColors.primaryDark,
-			fontWeight: '600',
-		},
-		cardActionsRow: {
-			flexDirection: 'row',
-			alignItems: 'center',
-			justifyContent: 'flex-end',
-			marginTop: 16,
-			gap: 16,
-			paddingBottom: 2,
-		},
-		actionBtn: {
-			marginRight: 0,
-			backgroundColor: themeColors.actionBtnBg,
-			padding: 0,
-			borderWidth: 1,
-			borderColor: themeColors.primaryDark + '29',
-			borderRadius: 8,
-			minWidth: 50,
-			minHeight: 50,
-			alignItems: 'center',
-			justifyContent: 'center',
-			marginLeft: 0,
-			flexDirection: 'column',
-		},
-		actionLabel: {
-			fontSize: 12,
-			color: themeColors.textSecondary,
-			marginTop: 2,
-			fontWeight: '500',
-			textAlign: 'center',
-			letterSpacing: 0.1,
-		},
-	container: { flex: 1, padding: 16, backgroundColor: themeColors.background, paddingBottom: Math.max(24, (insets?.bottom || 0) + 16) },
-	header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 },
-	title: { fontSize: 30, fontWeight: '600', color: themeColors.text },
-		addBtn: { backgroundColor: (themeColors as any).btnBg || themeColors.secondary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
-		addText: { color: (themeColors as any).btnText || '#FFFFFF', fontWeight: '600' },
-		listContent: { paddingBottom: 30 + Math.max(0, (insets?.bottom || 0)) },
-	card: {
-			borderRadius: 18,
-			backgroundColor: themeColors.card,
+			searchInput: {
+				flex: 1,
 				borderWidth: 1,
 				borderColor: themeColors.primary,
-			overflow: 'hidden',
-			position: 'relative',
-			minHeight: 90,
-		} as any,
-		cardTextShadow: {
-			textShadowColor: 'rgba(0,0,0,0.32)',
-			textShadowOffset: { width: 0, height: 2 },
-			textShadowRadius: 4,
-		},
-		cardBg: {
-			position: 'absolute',
-			left: 0,
-			top: 0,
-			right: 0,
-			bottom: 0,
-		} as any,
-		cardBgZoom: {
-			transform: [{ scale: 1.12 }], // Slight zoom to ensure full fill and crop
-		},
-		cardWhiteOverlay: {
-			position: 'absolute',
-			left: 0,
-			top: 0,
-			right: 0,
-			bottom: 0,
-			backgroundColor: 'rgba(255,255,255,0.10)', // very slight white overlay
-			zIndex: 1,
-			borderRadius: 18,
-		},
-		cardOverlay: {
-			position: 'absolute',
-			left: 0,
-			top: 0,
-			right: 0,
-			bottom: 0,
-			zIndex: 1,
-		} as any,
-		cardAccent: {
-			position: 'absolute',
-			left: 0,
-			top: 0,
-			bottom: 0,
-	width: 7,
-	backgroundColor: 'transparent',
-			opacity: 0.85,
-			zIndex: 2,
-		} as any,
-		cardContent: {
-			padding: 20,
-			paddingLeft: 24,
-			zIndex: 3,
-			position: 'relative',
-		},
+				backgroundColor: themeColors.card,
+				color: themeColors.text,
+				borderRadius: 8,
+				paddingHorizontal: 12,
+				paddingVertical: 8
+			},
+			secondaryBtn: { paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
+			iconBtn: { padding: 10, borderRadius: 999, borderWidth: 1, borderColor: themeColors.primary, backgroundColor: themeColors.primary + '12' },
+			secondaryBtnText: { color: themeColors.text, fontWeight: '600' },
+			sortLabel: {
+				fontSize: 15,
+				color: themeColors.textSecondary,
+				marginRight: 6,
+				fontWeight: '500',
+			},
+			sortBtn: {
+				paddingVertical: 4,
+				paddingHorizontal: 10,
+				borderRadius: 6,
+				backgroundColor: themeColors.card,
+				borderWidth: 1,
+				borderColor: themeColors.primary + '22',
+				marginRight: 2,
+			},
+			sortBtnActive: {
+				backgroundColor: themeColors.primary + '18',
+				borderColor: themeColors.primary,
+			},
+			sortBtnText: {
+				fontSize: 14,
+				color: themeColors.primaryDark,
+				fontWeight: '600',
+			},
+			cardActionsRow: {
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'flex-end',
+				marginTop: 16,
+				gap: 16,
+				paddingBottom: 2,
+			},
+			actionBtn: {
+				marginRight: 0,
+				backgroundColor: themeColors.actionBtnBg,
+				padding: 0,
+				borderWidth: 1,
+				borderColor: themeColors.primaryDark + '29',
+				borderRadius: 8,
+				minWidth: 50,
+				minHeight: 50,
+				alignItems: 'center',
+				justifyContent: 'center',
+				marginLeft: 0,
+				flexDirection: 'column',
+			},
+			actionLabel: {
+				fontSize: 12,
+				color: themeColors.textSecondary,
+				marginTop: 2,
+				fontWeight: '500',
+				textAlign: 'center',
+				letterSpacing: 0.1,
+			},
+			// Make container transparent so gradient (wrap the screen with <LinearGradient colors={styles.screenGradientColors} style={styles.gradientFill} />) shows through
+			container: {
+				flex: 1,
+				padding: 16,
+				backgroundColor: 'transparent',
+				paddingBottom: Math.max(24, (insets?.bottom || 0) + 16)
+			},
+			gradientFill: {
+				...StyleSheet.absoluteFillObject,
+			},
+			header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 },
+			title: { fontSize: 30, fontWeight: '600', color: themeColors.text },
+			addBtn: { backgroundColor: (themeColors as any).btnBg || themeColors.secondary, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 28 },
+			addText: { color: (themeColors as any).btnText || '#FFFFFF', fontWeight: '600' },
+			listContent: { paddingBottom: 30 + Math.max(0, (insets?.bottom || 0)) },
+			card: {
+				borderRadius: 18,
+				backgroundColor: themeColors.card,
+				borderWidth: 1,
+				borderColor: themeColors.primary,
+				overflow: 'hidden',
+				position: 'relative',
+				minHeight: 90,
+			} as any,
+			cardTextShadow: {
+				// Use card background color so shadow blends on plain cards and subtly outlines over photos
+				textShadowColor: themeColors.card,
+				textShadowOffset: { width: 0, height: 2 },
+				textShadowRadius: 4,
+			},
+			// Stronger shadow specifically for image backgrounds (improves contrast on bright images)
+			cardTextShadowImage: {
+				textShadowColor: 'rgba(0,0,0,0.55)',
+				textShadowOffset: { width: 0, height: 2 },
+				textShadowRadius: 5,
+			},
+			cardBg: {
+				position: 'absolute',
+				left: 0,
+				top: 0,
+				right: 0,
+				bottom: 0,
+			} as any,
+			cardBgZoom: {
+				transform: [{ scale: 1.12 }],
+			},
+			cardWhiteOverlay: {
+				position: 'absolute',
+				left: 0,
+				top: 0,
+				right: 0,
+				bottom: 0,
+				backgroundColor: 'rgba(255,255,255,0.10)',
+				zIndex: 1,
+				borderRadius: 18,
+			},
+			cardOverlay: {
+				position: 'absolute',
+				left: 0,
+				top: 0,
+				right: 0,
+				bottom: 0,
+				zIndex: 1,
+			} as any,
+			cardAccent: {
+				position: 'absolute',
+				left: 0,
+				top: 0,
+				bottom: 0,
+				width: 7,
+				backgroundColor: 'transparent',
+				opacity: 0.85,
+				zIndex: 2,
+			} as any,
+			cardContent: {
+				padding: 20,
+				paddingLeft: 24,
+				zIndex: 3,
+				position: 'relative',
+			},
 			cardContentBackdrop: {
-			position: 'absolute',
-			left: 12,
-			right: 12,
-			top: 12,
+				position: 'absolute',
+				left: 12,
+				right: 12,
+				top: 12,
 				bottom: 12,
-			borderRadius: 14,
-			backgroundColor: 'rgba(0,0,0,0.58)',
-			zIndex: 0,
-		},
-	cardPressed: {
-			opacity: 0.92,
-			transform: [{ scale: 0.98 }],
-		},
-		cardHeaderRow: {
-			flexDirection: 'row',
-			alignItems: 'center',
-			justifyContent: 'space-between',
-			marginBottom: 6,
-		},
-		cardTitle: {
-			fontSize: 22,
-			fontWeight: '700',
-			flex: 1,
-			marginRight: 8,
-			color: themeColors.text,
-			letterSpacing: 0.1,
-		},
-		completedChip: {
-			marginLeft: 8,
-			marginRight: 8, // Add space between completed badge and notes badge
-			paddingHorizontal: 8,
-			paddingVertical: 4,
-			borderRadius: 999,
-			backgroundColor: themeColors.highlight + '26',
-			borderWidth: 1,
-			borderColor: themeColors.highlight,
-			flexDirection: 'row',
-			alignItems: 'center',
-			gap: 6,
-		},
-		completedChipText: {
-			color: themeColors.highlight,
-			fontSize: 12,
-			fontWeight: '700',
-			letterSpacing: 0.2,
-		},
-		metaText: {
-			fontSize: 14,
-			color: themeColors.textSecondary,
-			marginBottom: 2,
-			fontWeight: '500',
-			letterSpacing: 0.05,
-		},
-		countdownText: {
-			fontSize: 13,
-			marginTop: 2,
-			fontWeight: '700',
-			letterSpacing: 0.2,
-		},
-	badge: {
-			paddingHorizontal: 10,
-			paddingVertical: 3,
-			borderRadius: 999,
-			minWidth: 28,
-			alignItems: 'center',
-			justifyContent: 'center',
-			overflow: 'hidden',
-		} as any,
-		badgeText: {
-			color: themeColors.badgeText,
-			fontSize: 13,
-			fontWeight: '700',
-			letterSpacing: 0.2,
-		},
+				borderRadius: 14,
+				backgroundColor: 'rgba(0,0,0,0.58)',
+				zIndex: 0,
+			},
+			cardPressed: {
+				opacity: 0.92,
+				transform: [{ scale: 0.98 }],
+			},
+			cardHeaderRow: {
+				flexDirection: 'row',
+				alignItems: 'center',
+				justifyContent: 'space-between',
+				marginBottom: 6,
+			},
+			cardTitle: {
+				fontSize: 22,
+				fontWeight: '700',
+				flex: 1,
+				marginRight: 8,
+				color: themeColors.text,
+				letterSpacing: 0.1,
+			},
+			completedChip: {
+				marginLeft: 8,
+				marginRight: 8,
+				paddingHorizontal: 8,
+				paddingVertical: 4,
+				borderRadius: 999,
+				backgroundColor: themeColors.highlight + '26',
+				borderWidth: 1,
+				borderColor: themeColors.highlight,
+				flexDirection: 'row',
+				alignItems: 'center',
+				gap: 6,
+			},
+			completedChipText: {
+				color: themeColors.highlight,
+				fontSize: 12,
+				fontWeight: '700',
+				letterSpacing: 0.2,
+			},
+			metaText: {
+				fontSize: 14,
+				color: themeColors.text, // unified card text color
+				marginBottom: 2,
+				fontWeight: '500',
+				letterSpacing: 0.05,
+			},
+			countdownText: {
+				fontSize: 13,
+				marginTop: 2,
+				fontWeight: '700',
+				letterSpacing: 0.2,
+			},
+			badge: {
+				paddingHorizontal: 10,
+				paddingVertical: 3,
+				borderRadius: 999,
+				minWidth: 28,
+				alignItems: 'center',
+				justifyContent: 'center',
+				overflow: 'hidden',
+			} as any,
+			badgeText: {
+				color: themeColors.badgeText,
+				fontSize: 13,
+				fontWeight: '700',
+				letterSpacing: 0.2,
+			},
 			modalBackdrop: {
 				position: 'absolute',
 				left: 0,
@@ -542,7 +572,6 @@ export default function TripsScreen() {
 			modalOptionTextActive: {
 				color: themeColors.primaryDark,
 			},
-			// FAB action menu specific styles
 			fabMenuCard: {
 				minWidth: 200,
 				borderRadius: 12,
@@ -598,7 +627,8 @@ export default function TripsScreen() {
 				letterSpacing: 0.2,
 				color: (themeColors as any).btnText || themeColors.badgeText,
 			},
-	}), [themeColors, insets?.bottom]);
+		});
+	}, [themeColors, insets?.bottom]);
 
 
 	return (
@@ -839,7 +869,7 @@ export default function TripsScreen() {
 										) : null}
 										{bgUri ? (
 											<LinearGradient
-												colors={["rgba(0,0,0,0.25)", "rgba(0,0,0,0.5)"]}
+												colors={[themeColors.card as any, 'transparent']}
 												start={{ x: 0, y: 0 }}
 												end={{ x: 0, y: 1 }}
 												style={styles.cardOverlay}
@@ -856,17 +886,16 @@ export default function TripsScreen() {
 												<Text
 													style={[
 														styles.cardTitle,
-														bgUri ? styles.cardTextShadow : null,
-														bgUri ? { color: '#fff' } : null
+														bgUri ? styles.cardTextShadowImage : styles.cardTextShadow // stronger shadow on images
 													]}
 													numberOfLines={1}
 												>
 													{item.title}
 												</Text>
 												{item.completed ? (
-													<View style={[styles.completedChip, bgUri ? { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: '#fff' } : null]}>
-													<Ionicons name="checkmark-done-outline" size={14} color={bgUri ? '#fff' : themeColors.primaryDark} />
-													<Text style={[styles.completedChipText, bgUri ? { color: '#fff' } : null]}>Completed</Text>
+													<View style={styles.completedChip}>
+													<Ionicons name="checkmark-done-outline" size={14} color={themeColors.primaryDark} />
+													<Text style={styles.completedChipText}>Completed</Text>
 												</View>
 											) : null}
 											{/* Notes badge removed; integrated into summary sentences */}
@@ -894,8 +923,7 @@ export default function TripsScreen() {
 												text = fullFmt(item.endDate);
 											}
 											if (!text) return null;
-											const lineColor = bgUri ? { color: '#f3f3f3' } : null;
-											return <Text style={[styles.metaText, { fontWeight: '700' }, bgUri ? styles.cardTextShadow : null, lineColor]}>{text}</Text>;
+											return <Text style={[styles.metaText, { fontWeight: '700' }, bgUri ? styles.cardTextShadowImage : styles.cardTextShadow]}>{text}</Text>;
 										})()}
 										{(() => {
 											const duration = computeDurationDays(item.startDate, item.endDate);
@@ -957,11 +985,10 @@ export default function TripsScreen() {
 												const diff = Math.floor((startOfToday().getTime() - createdMid) / MS_PER_DAY);
 												sentence2 = diff <= 0 ? 'Created today' : `Created ${diff} day${diff === 1 ? '' : 's'} ago`;
 											}
-											const lineColor = bgUri ? { color: '#efefef' } : null;
 											return (
 												<>
-													<Text style={[styles.metaText, bgUri ? styles.cardTextShadow : null, lineColor]} numberOfLines={3}>{sentence1}</Text>
-													{!!sentence2 && <Text style={[styles.metaText, bgUri ? styles.cardTextShadow : null, lineColor]}>{sentence2}</Text>}
+													<Text style={[styles.metaText, bgUri ? styles.cardTextShadowImage : styles.cardTextShadow]} numberOfLines={3}>{sentence1}</Text>
+													{!!sentence2 && <Text style={[styles.metaText, bgUri ? styles.cardTextShadowImage : styles.cardTextShadow]}>{sentence2}</Text>}
 												</>
 											);
 										})()}
