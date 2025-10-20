@@ -1,16 +1,3 @@
-Got it — let’s make this clean and professional, but still approachable to recruiters or collaborators who might browse your GitHub.
-
----
-
-### **Short GitHub Description**
-
-> Travel journaling app for cruise enthusiasts. Log ports of call, excursions, weather, and memories — all in one place.
-
----
-
-### **README.md**
-
-```markdown
 # PortList 🌊  
 **Your personal cruise journal — track every port, excursion, and memory.**
 
@@ -39,7 +26,6 @@ PortList is a mobile travel journaling app designed for cruise enthusiasts who w
 
 ## 🧱 Project Structure
 ```
-
 PortList/
 ├── app/               # Screens and navigation
 ├── components/        # Reusable UI elements
@@ -48,8 +34,7 @@ PortList/
 ├── utils/             # Helper functions
 ├── package.json
 └── README.md
-
-````
+```
 
 ---
 
@@ -66,41 +51,31 @@ npm install
 
 # Start the app
 npx expo start
-````
+```
 
 Use your mobile device and the Expo Go app to preview the project.
 
 ---
 
 ## 🎯 Roadmap
-
-* [ ] Cloud sync and user authentication
-* [ ] Trip sharing and collaboration
-* [ ] Cruise statistics dashboard
-* [ ] PDF & CSV export features
-* [ ] Dark mode & enhanced UI animations
+- [ ] Cloud sync and user authentication  
+- [ ] Trip sharing and collaboration  
+- [ ] Cruise statistics dashboard  
+- [ ] PDF & CSV export features  
+- [ ] Dark mode & enhanced UI animations  
 
 ---
 
 ## 🧑‍💻 Author
-
-**Brenton Gray**
-Software Engineer | U.S. Marine Corps Veteran
+**Brenton Gray**  
+Software Engineer | U.S. Marine Corps Veteran  
 [LinkedIn](https://www.linkedin.com/in/brenton-j-gray) • [GitHub](https://github.com/brenton-j-gray)
 
 ---
 
 ## 🪶 License
-
 This project is licensed under the [MIT License](LICENSE).
 
 ---
 
 > *“Collect moments, not souvenirs — PortList helps you remember every port of call.”*
-
-```
-
----
-
-Would you like me to tune it more toward **technical recruiters** (emphasizing stack and skills) or **end users** (more of an app-store pitch)? I can shift the tone accordingly.
-```
