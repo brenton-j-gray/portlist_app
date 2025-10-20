@@ -1,90 +1,106 @@
-# Welcome to your Expo app 👋
+Got it — let’s make this clean and professional, but still approachable to recruiters or collaborators who might browse your GitHub.
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+---
 
-## Get started
+### **Short GitHub Description**
 
-1. Install dependencies
+> Travel journaling app for cruise enthusiasts. Log ports of call, excursions, weather, and memories — all in one place.
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+### **README.md**
 
-   ```bash
-   npx expo start
-   ```
+```markdown
+# PortList 🌊  
+**Your personal cruise journal — track every port, excursion, and memory.**
 
-In the output, you'll find options to open the app in a
+PortList is a mobile travel journaling app designed for cruise enthusiasts who want to record, relive, and share their voyages. Built with **React Native**, **Expo**, and **TypeScript**, it provides an intuitive way to log ports of call, excursions, weather conditions, and personal notes — even offline.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+---
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+## 🚢 Features
+- **Trip & Port Logs:** Create custom cruise entries with dates, locations, and ship info.  
+- **Excursion Tracking:** Record details, ratings, and notes for each port activity.  
+- **Offline Access:** Capture memories even without an internet connection.  
+- **Map Integration:** Visualize your journey using **OpenStreetMap** and **Google Maps APIs**.  
+- **Photo Journaling:** Add images to your entries for a complete travel record.  
+- **Data Export (Upcoming):** Export trips as shareable PDFs or travel summaries.
 
-## Geocoding (no Google)
+---
 
-The app does not use Google services. For place search:
+## 🧭 Tech Stack
+- **Frontend:** React Native, Expo, TypeScript, Expo Router  
+- **Backend:** Node.js (planned integration for cloud sync & storage)  
+- **Mapping:** OpenStreetMap (OSM), Google Maps API  
+- **Storage:** AsyncStorage (local), with plans for cloud sync  
+- **Deployment:** Android (Google Play Console)  
 
-- Preferred: MapTiler Geocoding (set `EXPO_PUBLIC_MAPTILER_KEY` in `.env`).
-- Fallback: OpenStreetMap Nominatim (respecting usage policy with a custom User-Agent).
+---
 
-## Map tiles (avoid OSM blocks)
-
-The app renders maps via `react-native-maps` `UrlTile`. By default it points to OpenStreetMap's public tile server for local development. The public OSM tiles are volunteer-run and will block apps that don't meet their usage policy, especially mobile apps.
-
-To avoid "App is not following the tile usage policy" blocks, configure a proper tile provider:
-
-- Option A (recommended): MapTiler
-  - Create a free key at https://www.maptiler.com/
-  - Add to your `.env`:
-
-    ```env
-    EXPO_PUBLIC_MAPTILER_KEY=YOUR_KEY
-    ```
-
-  - This auto-switches tiles to `https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=...`.
-
-- Option B: Custom tile URL
-  - Set any compatible template with `{z}/{x}/{y}` placeholders:
-
-    ```env
-    EXPO_PUBLIC_TILE_URL_TEMPLATE=https://your.tiles.provider/path/{z}/{x}/{y}.png?token=KEY
-    ```
-
-Notes:
-- Environment variables must be prefixed with `EXPO_PUBLIC_` to be available at runtime.
-- After changing env, restart the bundler (and rebuild the dev client if native config changed).
-- The map shows a small attribution label; keep it visible to comply with provider terms.
-
-## Android native map (MapLibre)
-
-Android uses the MapLibre RN SDK (react-native-maplibre-gl). It pulls its native artifacts from Maven Central — no Mapbox downloads token is required. Tiles/geocoding still come from your configured providers (MapTiler/OSM).
-
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+## 🧱 Project Structure
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+PortList/
+├── app/               # Screens and navigation
+├── components/        # Reusable UI elements
+├── assets/            # Icons, images, and media
+├── hooks/             # Custom React hooks
+├── utils/             # Helper functions
+├── package.json
+└── README.md
 
-## Learn more
+````
 
-To learn more about developing your project with Expo, look at the following resources:
+---
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 🧪 Installation
+```bash
+# Clone this repo
+git clone https://github.com/brenton-j-gray/PortList.git
 
-## Join the community
+# Navigate to the project
+cd PortList
 
-Join our community of developers creating universal apps.
+# Install dependencies
+npm install
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# Start the app
+npx expo start
+````
+
+Use your mobile device and the Expo Go app to preview the project.
+
+---
+
+## 🎯 Roadmap
+
+* [ ] Cloud sync and user authentication
+* [ ] Trip sharing and collaboration
+* [ ] Cruise statistics dashboard
+* [ ] PDF & CSV export features
+* [ ] Dark mode & enhanced UI animations
+
+---
+
+## 🧑‍💻 Author
+
+**Brenton Gray**
+Software Engineer | U.S. Marine Corps Veteran
+[LinkedIn](https://www.linkedin.com/in/brenton-j-gray) • [GitHub](https://github.com/brenton-j-gray)
+
+---
+
+## 🪶 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+
+> *“Collect moments, not souvenirs — PortList helps you remember every port of call.”*
+
+```
+
+---
+
+Would you like me to tune it more toward **technical recruiters** (emphasizing stack and skills) or **end users** (more of an app-store pitch)? I can shift the tone accordingly.
+```
